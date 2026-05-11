@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     public_base_url: str = "http://localhost:8000"
     app_timezone: str = "Europe/Astrakhan"
     telegram_bot_token: str | None = None
+    telegram_api_server_url: str | None = "https://tgproxy.advsrvone.pw/"
     telegram_webhook_secret: str = "change-me"
     missed_grace_minutes: int = 120
     reminder_lookahead_minutes: int = 30

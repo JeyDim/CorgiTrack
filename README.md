@@ -58,6 +58,10 @@ where h.name = 'Семья';
 
 ## Команды Telegram
 
+По умолчанию Telegram-клиент ходит через кастомный Bot API server:
+`TELEGRAM_API_SERVER_URL=https://tgproxy.advsrvone.pw/`.
+Значение можно переопределить или очистить в `.env`, если нужен прямой доступ к Telegram API.
+
 - `/start` привязывает пользователя Telegram, если его ID уже указан в `family_members.telegram_user_id`.
   Если пользователь еще не привязан, бот ответит его Telegram ID.
 - `/today` показывает дозы, которые скоро нужно принять.

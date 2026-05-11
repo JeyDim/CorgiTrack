@@ -2,6 +2,8 @@ import asyncio
 from datetime import timedelta
 
 from aiogram import Bot, Dispatcher, F
+from aiogram.client.session.aiohttp import AiohttpSession
+from aiogram.client.telegram import TelegramAPIServer
 from aiogram.filters import Command
 from aiogram.types import BufferedInputFile, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 from sqlalchemy import select
@@ -155,7 +157,16 @@ async def run_scheduler(bot: Bot) -> None:
 async def run_bot_polling() -> None:
     if not settings.telegram_bot_token:
         return
-    bot = Bot(settings.telegram_bot_token)
+    session = build_telegram_session()
+    bot = Bot(settings.telegram_bot_token, session=session)
     dp = build_dispatcher()
     asyncio.create_task(run_scheduler(bot))
     await dp.start_polling(bot)
+
+
+def build_telegram_session() -> AiohttpSession:
+    if not settings.telegram_api_server_url:
+        return AiohttpSession()
+    return AiohttpSession(
+        api=TelegramAPIServer.from_base(settings.telegram_api_server_url),
+    )
