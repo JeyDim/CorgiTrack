@@ -119,6 +119,24 @@ async def mark_taken(
     return dose
 
 
+async def mark_taken_by_api_key(
+    session: AsyncSession,
+    dose_id: int,
+    api_key: str,
+    note: str | None = None,
+) -> Dose | None:
+    dose = await session.scalar(
+        select(Dose).where(Dose.id == dose_id, Dose.api_key == api_key)
+    )
+    if not dose:
+        return None
+    dose.status = DoseStatus.taken
+    dose.taken_at = utcnow()
+    dose.note = note
+    await session.commit()
+    return dose
+
+
 async def mark_overdue_as_missed(session: AsyncSession, grace_minutes: int) -> list[Dose]:
     cutoff = utcnow() - timedelta(minutes=grace_minutes)
     rows = list(

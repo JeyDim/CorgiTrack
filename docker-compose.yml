@@ -1,5 +1,6 @@
 services:
   app:
+    image: cr.selcloud.ru/kip-sapp/corgi-track:v1.0.0
     build:
       context: .
     environment:

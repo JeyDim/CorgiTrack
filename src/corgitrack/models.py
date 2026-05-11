@@ -1,4 +1,5 @@
 import enum
+import secrets
 import uuid
 from datetime import datetime, time
 
@@ -19,6 +20,10 @@ class DoseStatus(str, enum.Enum):
     taken = "taken"
     missed = "missed"
     skipped = "skipped"
+
+
+def generate_api_key() -> str:
+    return secrets.token_urlsafe(32)
 
 
 class Household(Base):
@@ -84,6 +89,12 @@ class Dose(Base):
     treatment_id: Mapped[int] = mapped_column(ForeignKey("treatments.id", ondelete="CASCADE"))
     due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     status: Mapped[DoseStatus] = mapped_column(Enum(DoseStatus), default=DoseStatus.planned, index=True)
+    api_key: Mapped[str] = mapped_column(
+        String(64),
+        default=generate_api_key,
+        unique=True,
+        index=True,
+    )
     reminded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     taken_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     confirmed_by_member_id: Mapped[int | None] = mapped_column(ForeignKey("family_members.id"), nullable=True)
