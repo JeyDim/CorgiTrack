@@ -1,0 +1,37 @@
+services:
+  app:
+    build:
+      context: .
+    environment:
+      DATABASE_URL: postgresql+asyncpg://corgitrack:corgitrack@postgres:5432/corgitrack
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8000}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Europe/Astrakhan}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-change-me}
+      MISSED_GRACE_MINUTES: ${MISSED_GRACE_MINUTES:-120}
+      REMINDER_LOOKAHEAD_MINUTES: ${REMINDER_LOOKAHEAD_MINUTES:-30}
+      SCHEDULER_TICK_SECONDS: ${SCHEDULER_TICK_SECONDS:-60}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: corgitrack
+      POSTGRES_PASSWORD: corgitrack
+      POSTGRES_DB: corgitrack
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U corgitrack -d corgitrack"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+volumes:
+  postgres-data:
