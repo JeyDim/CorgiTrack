@@ -1,17 +1,19 @@
 services:
   app:
-    image: cr.selcloud.ru/kip-sapp/corgi-track:v1.0.3
+    image: cr.selcloud.ru/kip-sapp/corgi-track:v2.0.0
     build:
-      context: .
+      context: ./server
     environment:
-      DATABASE_URL: postgresql+asyncpg://corgitrack:corgitrack@postgres:5432/corgitrack
+      DATABASE_URL: postgres://corgitrack:corgitrack@postgres:5432/corgitrack
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8000}
       APP_TIMEZONE: ${APP_TIMEZONE:-Europe/Astrakhan}
+      SERVICE_TOKEN: ${SERVICE_TOKEN:-change-me}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
-      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-change-me}
+      TELEGRAM_API_SERVER_URL: ${TELEGRAM_API_SERVER_URL:-https://tgproxy.advsrvone.pw/}
       MISSED_GRACE_MINUTES: ${MISSED_GRACE_MINUTES:-120}
       REMINDER_LOOKAHEAD_MINUTES: ${REMINDER_LOOKAHEAD_MINUTES:-30}
       SCHEDULER_TICK_SECONDS: ${SCHEDULER_TICK_SECONDS:-60}
+      RUST_LOG: ${RUST_LOG:-info}
     ports:
       - "8000:8000"
     depends_on:
