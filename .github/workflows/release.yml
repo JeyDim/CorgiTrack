@@ -1,0 +1,108 @@
+name: Release
+
+# Запускается при публикации релиза на GitHub. Версию берём из тега релиза
+# (ведущая "v" отбрасывается) и проставляем её и в сервер, и в десктоп перед сборкой.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write # tauri-action прикладывает бандлы к релизу
+
+jobs:
+  # --- Версия из тега релиза -> отдаём остальным job'ам ---
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - id: v
+        run: |
+          tag="${{ github.event.release.tag_name }}"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+  # --- Сервер: multi-arch Docker-образ (amd64 + arm64 для Raspberry Pi) -> приватный регистри ---
+  server:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Проставить версию релиза
+        run: bash scripts/set-version.sh "${{ needs.version.outputs.version }}"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          # Полный путь образа без тега, напр. registry.example.com/me/corgitrack
+          images: ${{ secrets.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ needs.version.outputs.version }}
+            type=raw,value=latest
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./server
+          file: ./server/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # --- Десктоп: Tauri-бандлы под Windows / macOS / Linux, грузятся в релиз ---
+  desktop:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [windows-latest, macos-latest, ubuntu-22.04]
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Системные зависимости (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            librsvg2-dev \
+            libayatana-appindicator3-dev \
+            patchelf
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - name: Проставить версию релиза
+        shell: bash
+        run: bash scripts/set-version.sh "${{ needs.version.outputs.version }}"
+
+      - name: Установить фронтенд-зависимости
+        working-directory: desktop
+        run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: desktop
+          releaseId: ${{ github.event.release.id }}
