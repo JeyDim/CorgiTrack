@@ -1,11 +1,17 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useSettingsStore } from "./stores/settings";
+import { useUpdaterStore } from "./stores/updater";
 import ToastHost from "./components/ToastHost.vue";
+import UpdateBanner from "./components/UpdateBanner.vue";
 
 const router = useRouter();
 const settings = useSettingsStore();
+const updater = useUpdaterStore();
+
+// Проверяем обновления на старте и далее раз в час.
+onMounted(() => updater.startAuto());
 
 const navItems = computed(() =>
   router.options.routes
@@ -65,6 +71,7 @@ const host = computed(() => {
       </RouterView>
     </main>
 
+    <UpdateBanner />
     <ToastHost />
   </div>
 </template>

@@ -10,6 +10,9 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         // opener — открыть ссылку календаря во внешнем приложении.
         .plugin(tauri_plugin_opener::init())
+        // updater + process — авто-обновление с GitHub Releases и перезапуск после установки.
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

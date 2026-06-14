@@ -9,6 +9,8 @@
     "store:default",
     "dialog:default",
     "fs:default",
+    "updater:default",
+    "process:default",
     {
       "identifier": "fs:allow-write-text-file",
       "allow": [
