@@ -1,0 +1,40 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Базовые разрешения десктоп-клиента CorgiTrack",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "opener:default",
+    "store:default",
+    "dialog:default",
+    "fs:default",
+    {
+      "identifier": "fs:allow-write-text-file",
+      "allow": [
+        { "path": "$HOME/**" },
+        { "path": "$DOWNLOAD/**" },
+        { "path": "$DESKTOP/**" },
+        { "path": "$DOCUMENT/**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-write-file",
+      "allow": [
+        { "path": "$HOME/**" },
+        { "path": "$DOWNLOAD/**" },
+        { "path": "$DESKTOP/**" },
+        { "path": "$DOCUMENT/**" }
+      ]
+    },
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "http://*:*/*" },
+        { "url": "https://*:*/*" },
+        { "url": "http://*/*" },
+        { "url": "https://*/*" }
+      ]
+    }
+  ]
+}

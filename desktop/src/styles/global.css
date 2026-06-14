@@ -1,0 +1,322 @@
+/* ====================================================================
+   CorgiTrack — корги-тема. Тёплая «бумага», рыжий окрас, коричневые
+   чернила, скруглённые дружелюбные формы, мотивы лапок.
+   ==================================================================== */
+
+:root {
+  /* фон / поверхности */
+  --paper: #fbefe2;
+  --paper-deep: #f3e1cd;
+  --surface: #fff8f0;
+  --surface-2: #fdf1e4;
+
+  /* окрас корги */
+  --corgi: #e0913f;
+  --corgi-deep: #c9742b;
+  --corgi-soft: #f2c79b;
+  --corgi-wash: #fbe4cb;
+
+  /* чернила */
+  --ink: #4a342a;
+  --ink-soft: #8a7363;
+  --ink-faint: #b6a18f;
+
+  /* статусы (тёплая палитра) */
+  --ok: #6fa86b;
+  --ok-bg: #e6f0df;
+  --warn: #d9a441;
+  --warn-bg: #faeccf;
+  --danger: #c76b5a;
+  --danger-bg: #f6e0da;
+  --calm: #9c8aa6;
+  --calm-bg: #efe7f0;
+
+  /* формы */
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-pill: 999px;
+
+  --shadow-sm: 0 2px 6px rgba(120, 80, 40, 0.1);
+  --shadow-md: 0 8px 22px rgba(120, 80, 40, 0.14);
+  --shadow-lg: 0 18px 44px rgba(120, 80, 40, 0.2);
+
+  --ring: 0 0 0 3px rgba(224, 145, 63, 0.35);
+
+  --font-display: "Fredoka", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Nunito", "Segoe UI", system-ui, sans-serif;
+
+  --sidebar-w: 232px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  color: var(--ink);
+  background-color: var(--paper);
+  /* мягкое тёплое свечение + ненавязчивый паттерн лапок */
+  background-image:
+    radial-gradient(
+      1100px 700px at 100% -10%,
+      rgba(242, 199, 155, 0.55),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 600px at -10% 110%,
+      rgba(224, 145, 63, 0.18),
+      transparent 55%
+    ),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90' viewBox='0 0 90 90'%3E%3Cg fill='%23c9742b' fill-opacity='0.05'%3E%3Cellipse cx='45' cy='52' rx='9' ry='11'/%3E%3Cellipse cx='31' cy='34' rx='4' ry='5.5'/%3E%3Cellipse cx='45' cy='29' rx='4' ry='5.5'/%3E%3Cellipse cx='59' cy='34' rx='4' ry='5.5'/%3E%3Cellipse cx='66' cy='46' rx='3.5' ry='5'/%3E%3C/g%3E%3C/svg%3E");
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0;
+  letter-spacing: 0.2px;
+}
+
+a {
+  color: var(--corgi-deep);
+  text-decoration: none;
+}
+
+/* ---- скроллбар ---- */
+*::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--corgi-soft);
+  border-radius: var(--r-pill);
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--corgi);
+  background-clip: content-box;
+}
+
+/* ===================== кнопки ===================== */
+.btn {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 500;
+  border: none;
+  border-radius: var(--r-pill);
+  padding: 0.55rem 1.2rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease,
+    background 0.12s ease,
+    filter 0.12s ease;
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  white-space: nowrap;
+}
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+.btn:active {
+  transform: translateY(0);
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-primary {
+  background: linear-gradient(140deg, var(--corgi), var(--corgi-deep));
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(201, 116, 43, 0.35);
+}
+.btn-primary:hover {
+  filter: brightness(1.04);
+}
+
+.btn-ok {
+  background: linear-gradient(140deg, #7cb877, var(--ok));
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(111, 168, 107, 0.3);
+}
+.btn-danger-soft {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.btn-ghost {
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink-soft);
+}
+.btn-ghost:hover {
+  background: var(--corgi-wash);
+  box-shadow: none;
+  color: var(--ink);
+}
+.btn-sm {
+  font-size: 0.84rem;
+  padding: 0.38rem 0.85rem;
+}
+
+/* ===================== поля ===================== */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.field > label {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+.input,
+.select,
+.textarea {
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1.5px solid var(--corgi-wash);
+  border-radius: var(--r-md);
+  padding: 0.6rem 0.8rem;
+  width: 100%;
+  transition:
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+.input:focus,
+.select:focus,
+.textarea:focus {
+  outline: none;
+  border-color: var(--corgi);
+  box-shadow: var(--ring);
+}
+.textarea {
+  resize: vertical;
+  min-height: 70px;
+}
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--ink-faint);
+}
+
+/* ===================== карточка ===================== */
+.card {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid rgba(201, 116, 43, 0.08);
+}
+
+/* ===================== бейджи статусов ===================== */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 0.2rem 0.65rem;
+  border-radius: var(--r-pill);
+  white-space: nowrap;
+}
+.badge.ok {
+  color: #3f6b3b;
+  background: var(--ok-bg);
+}
+.badge.warn {
+  color: #8a6418;
+  background: var(--warn-bg);
+}
+.badge.danger {
+  color: #8a3a2c;
+  background: var(--danger-bg);
+}
+.badge.calm {
+  color: #5e4e68;
+  background: var(--calm-bg);
+}
+
+/* ===================== служебное ===================== */
+.muted {
+  color: var(--ink-soft);
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.spread {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+}
+
+/* мягкое появление контента страницы */
+.page-enter-active {
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
+}
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+/* спиннер-лапка */
+@keyframes paw-bounce {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: translateY(-6px) scale(1.1);
+    opacity: 1;
+  }
+}
+.paw-loader {
+  display: inline-flex;
+  gap: 0.3rem;
+  font-size: 1.3rem;
+}
+.paw-loader span {
+  animation: paw-bounce 0.9s infinite ease-in-out;
+}
+.paw-loader span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.paw-loader span:nth-child(3) {
+  animation-delay: 0.3s;
+}
