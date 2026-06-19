@@ -5,6 +5,7 @@ pub mod health;
 pub mod households;
 pub mod members;
 pub mod reports;
+pub mod settings;
 pub mod treatments;
 
 use axum::routing::get;
@@ -32,6 +33,7 @@ pub fn router(state: AppState) -> Router {
         .merge(treatments::router())
         .merge(doses::protected_router())
         .merge(reports::router())
+        .merge(settings::router())
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             require_service_token,

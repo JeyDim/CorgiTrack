@@ -14,12 +14,6 @@ pub struct Settings {
     /// Кастомный Bot API server (по умолчанию прокси, как в Python).
     /// Пустая строка в env очищает значение (прямой доступ к api.telegram.org).
     pub telegram_api_server_url: Option<String>,
-    /// Пауза после первого напоминания до повторного вопроса тому же человеку (минуты).
-    pub escalation_first_delay_minutes: i64,
-    /// Пауза между последующими шагами эскалации — повтор/следующий по списку (минуты).
-    pub escalation_step_minutes: i64,
-    pub reminder_lookahead_minutes: i64,
-    pub scheduler_tick_seconds: u64,
 }
 
 impl Settings {
@@ -35,10 +29,6 @@ impl Settings {
             service_token: env_or("SERVICE_TOKEN", "change-me"),
             telegram_bot_token: env_opt("TELEGRAM_BOT_TOKEN"),
             telegram_api_server_url: telegram_api_server_url(),
-            escalation_first_delay_minutes: env_parse("ESCALATION_FIRST_DELAY_MINUTES", 30),
-            escalation_step_minutes: env_parse("ESCALATION_STEP_MINUTES", 5),
-            reminder_lookahead_minutes: env_parse("REMINDER_LOOKAHEAD_MINUTES", 30),
-            scheduler_tick_seconds: env_parse("SCHEDULER_TICK_SECONDS", 60),
         }
     }
 }
@@ -56,13 +46,6 @@ fn env_opt(key: &str) -> Option<String> {
         Ok(value) if !value.trim().is_empty() => Some(value),
         _ => None,
     }
-}
-
-fn env_parse<T: std::str::FromStr>(key: &str, default: T) -> T {
-    env::var(key)
-        .ok()
-        .and_then(|value| value.parse().ok())
-        .unwrap_or(default)
 }
 
 /// Семантика как в Python: по умолчанию используется прокси Bot API server;

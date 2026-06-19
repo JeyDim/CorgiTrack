@@ -82,3 +82,19 @@ ALTER TABLE doses ADD COLUMN IF NOT EXISTS last_escalated_at TIMESTAMPTZ;
 CREATE INDEX        IF NOT EXISTS ix_doses_due_at  ON doses (due_at);
 CREATE INDEX        IF NOT EXISTS ix_doses_status  ON doses (status);
 CREATE UNIQUE INDEX IF NOT EXISTS ix_doses_api_key ON doses (api_key);
+
+-- Глобальные операционные настройки приложения. Одна строка (id = 1):
+-- тайминги эскалации, окно напоминаний и период шедулера правятся через API
+-- без перезапуска сервиса.
+CREATE TABLE IF NOT EXISTS app_settings (
+    id                             SMALLINT     PRIMARY KEY DEFAULT 1,
+    escalation_first_delay_minutes INTEGER      NOT NULL DEFAULT 30,
+    escalation_step_minutes        INTEGER      NOT NULL DEFAULT 5,
+    reminder_lookahead_minutes     INTEGER      NOT NULL DEFAULT 30,
+    scheduler_tick_seconds         INTEGER      NOT NULL DEFAULT 60,
+    updated_at                     TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    CONSTRAINT app_settings_singleton CHECK (id = 1)
+);
+
+-- Сид строки настроек значениями по умолчанию (идемпотентно).
+INSERT INTO app_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;

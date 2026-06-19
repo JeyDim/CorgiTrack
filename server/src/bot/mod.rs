@@ -7,13 +7,14 @@ use teloxide::types::{ChatId, InlineKeyboardButton, InlineKeyboardMarkup, InputF
 use teloxide::utils::command::BotCommands;
 use url::Url;
 
-use crate::models::{DoseDetail, FamilyMember};
+use crate::models::{AppSettings, DoseDetail, FamilyMember};
 use crate::services::reports::taken_csv_for_household;
 use crate::services::schedules::{
     advance_escalation, ensure_future_doses, get_due_for_household, get_household_for_telegram,
     get_reminded_doses, mark_missed, mark_ready_to_remind, mark_taken, next_escalation_action,
     ordered_notify_members, EscalationAction,
 };
+use crate::services::settings as app_settings;
 use crate::state::AppState;
 use crate::util::timezone;
 
@@ -241,20 +242,36 @@ fn due_keyboard(doses: &[DoseDetail]) -> Option<InlineKeyboardMarkup> {
 
 async fn run_scheduler(bot: Bot, state: AppState) {
     let tz = timezone(&state.settings.app_timezone);
-    let tick = StdDuration::from_secs(state.settings.scheduler_tick_seconds);
     loop {
-        if let Err(err) = notify_due(&bot, &state, tz).await {
+        // Операционные настройки читаем из БД каждый тик — правки через API
+        // подхватываются без перезапуска сервиса.
+        let settings = match app_settings::get(&state.pool).await {
+            Ok(s) => s,
+            Err(err) => {
+                tracing::error!(error = %err, "не удалось прочитать настройки шедулера");
+                tokio::time::sleep(StdDuration::from_secs(60)).await;
+                continue;
+            }
+        };
+        if let Err(err) = notify_due(&bot, &state, tz, &settings).await {
             tracing::error!(error = %err, "ошибка цикла напоминаний");
         }
-        tokio::time::sleep(tick).await;
+        let tick = settings.scheduler_tick_seconds.max(1) as u64;
+        tokio::time::sleep(StdDuration::from_secs(tick)).await;
     }
 }
 
-async fn notify_due(bot: &Bot, state: &AppState, tz: Tz) -> anyhow::Result<()> {
+async fn notify_due(
+    bot: &Bot,
+    state: &AppState,
+    tz: Tz,
+    settings: &AppSettings,
+) -> anyhow::Result<()> {
     ensure_future_doses(&state.pool, tz, 370).await?;
 
     // Шаг 1: новые наступившие дозы — первое напоминание только первому по эскалации.
-    let ready = mark_ready_to_remind(&state.pool, state.settings.reminder_lookahead_minutes).await?;
+    let ready =
+        mark_ready_to_remind(&state.pool, settings.reminder_lookahead_minutes as i64).await?;
     for d in &ready {
         let members = ordered_notify_members(&state.pool, d.household_id).await?;
         if let Some(primary) = members.first() {
@@ -272,8 +289,8 @@ async fn notify_due(bot: &Bot, state: &AppState, tz: Tz) -> anyhow::Result<()> {
             d.dose.last_escalated_at,
             members.len(),
             now,
-            state.settings.escalation_first_delay_minutes,
-            state.settings.escalation_step_minutes,
+            settings.escalation_first_delay_minutes as i64,
+            settings.escalation_step_minutes as i64,
         );
         match action {
             EscalationAction::Wait => {}

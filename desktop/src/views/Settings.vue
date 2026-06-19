@@ -5,7 +5,7 @@ import { writeFile } from "@tauri-apps/plugin-fs";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
 import { CorgiApi } from "../api/client";
-import type { Household } from "../api/types";
+import type { AppSettings, FamilyMember, Household } from "../api/types";
 import { useSettingsStore } from "../stores/settings";
 import { useToastStore } from "../stores/toast";
 
@@ -23,16 +23,86 @@ const selectedHousehold = ref<number | null>(settings.householdId);
 const calendarUrl = ref<string | null>(null);
 const downloading = ref(false);
 
+// Глобальные операционные настройки (тайминги эскалации и шедулера).
+const appSettings = ref<AppSettings | null>(null);
+const savingSettings = ref(false);
+
+// Порядок обзвона членов семьи.
+const members = ref<FamilyMember[]>([]);
+const savingMembers = ref(false);
+
 onMounted(async () => {
-  // Если уже настроено — подтянем список семей для выбора.
+  // Если уже настроено — подтянем список семей и глобальные настройки.
   if (settings.configured) {
     try {
       households.value = await settings.api().listHouseholds();
     } catch {
       /* молча: пользователь увидит при «Проверить» */
     }
+    await loadAppSettings();
+    await loadMembers();
   }
 });
+
+async function loadAppSettings() {
+  try {
+    appSettings.value = await settings.api().getSettings();
+  } catch {
+    /* молча: появится при следующем действии */
+  }
+}
+
+async function saveAppSettings() {
+  const cur = appSettings.value;
+  if (!cur) return;
+  savingSettings.value = true;
+  try {
+    appSettings.value = await settings.api().updateSettings({
+      escalation_first_delay_minutes: cur.escalation_first_delay_minutes,
+      escalation_step_minutes: cur.escalation_step_minutes,
+      reminder_lookahead_minutes: cur.reminder_lookahead_minutes,
+      scheduler_tick_seconds: cur.scheduler_tick_seconds,
+    });
+    toast.success("Настройки эскалации сохранены");
+  } catch (e) {
+    toast.error(`Ошибка: ${(e as Error).message}`);
+  } finally {
+    savingSettings.value = false;
+  }
+}
+
+async function loadMembers() {
+  if (settings.householdId == null) {
+    members.value = [];
+    return;
+  }
+  try {
+    const list = await settings.api().listMembers(settings.householdId);
+    members.value = list.sort(
+      (a, b) => a.escalation_order - b.escalation_order || a.id - b.id,
+    );
+  } catch {
+    members.value = [];
+  }
+}
+
+async function saveMembers() {
+  savingMembers.value = true;
+  try {
+    for (const m of members.value) {
+      await settings.api().updateMember(m.id, {
+        escalation_order: m.escalation_order,
+        notify: m.notify,
+      });
+    }
+    toast.success("Порядок обзвона сохранён");
+    await loadMembers();
+  } catch (e) {
+    toast.error(`Ошибка: ${(e as Error).message}`);
+  } finally {
+    savingMembers.value = false;
+  }
+}
 
 async function checkConnection() {
   if (!baseUrl.value.trim() || !token.value.trim()) {
@@ -56,6 +126,8 @@ async function checkConnection() {
       selectedHousehold.value = list[0].id;
       await settings.setHousehold(list[0].id);
     }
+    await loadAppSettings();
+    await loadMembers();
     toast.success("Подключение работает 🐾");
   } catch (e) {
     toast.error(`Не удалось подключиться: ${(e as Error).message}`);
@@ -67,6 +139,7 @@ async function checkConnection() {
 async function chooseHousehold() {
   await settings.setHousehold(selectedHousehold.value);
   calendarUrl.value = null;
+  await loadMembers();
   toast.success("Семья выбрана");
 }
 
@@ -192,6 +265,116 @@ async function downloadCsv() {
       </div>
     </section>
 
+    <section
+      v-if="settings.householdId != null && members.length"
+      class="card pad"
+    >
+      <h3>📣 Порядок напоминаний</h3>
+      <p class="muted small">
+        При напоминании сначала пишем участнику с наименьшим номером. Если за
+        отведённое время никто не нажал «Принято» — повтор тому же человеку,
+        затем следующий по порядку. 0 уведомляется первым. Учитываются только
+        участники с галочкой и привязанным Telegram.
+      </p>
+      <div class="members">
+        <div v-for="m in members" :key="m.id" class="member-row">
+          <div class="stack member-name">
+            <strong>{{ m.display_name }}</strong>
+            <span class="muted small">
+              {{
+                m.telegram_user_id
+                  ? `Telegram ID: ${m.telegram_user_id}`
+                  : "Telegram не привязан"
+              }}
+            </span>
+          </div>
+          <label class="order-field">
+            <span class="muted small">Порядок</span>
+            <input
+              v-model.number="m.escalation_order"
+              type="number"
+              min="0"
+              class="input order-input"
+            />
+          </label>
+          <label class="notify-field">
+            <input v-model="m.notify" type="checkbox" />
+            <span class="muted small">Уведомлять</span>
+          </label>
+        </div>
+      </div>
+      <div class="actions">
+        <button
+          class="btn btn-primary"
+          :disabled="savingMembers"
+          @click="saveMembers"
+        >
+          {{ savingMembers ? "Сохраняю…" : "Сохранить порядок" }}
+        </button>
+      </div>
+    </section>
+
+    <section v-if="appSettings" class="card pad">
+      <h3>⏱️ Эскалация и напоминания</h3>
+      <p class="muted small">
+        Глобальные тайминги бота. Хранятся на сервере и применяются без
+        перезапуска.
+      </p>
+      <div class="grid grid-4">
+        <div class="field">
+          <label>Повтор первому, мин</label>
+          <input
+            v-model.number="appSettings.escalation_first_delay_minutes"
+            type="number"
+            min="1"
+            class="input"
+          />
+          <span class="muted small"
+            >пауза до повторного вопроса тому же человеку</span
+          >
+        </div>
+        <div class="field">
+          <label>Шаг эскалации, мин</label>
+          <input
+            v-model.number="appSettings.escalation_step_minutes"
+            type="number"
+            min="1"
+            class="input"
+          />
+          <span class="muted small">пауза между следующими шагами</span>
+        </div>
+        <div class="field">
+          <label>Окно напоминания, мин</label>
+          <input
+            v-model.number="appSettings.reminder_lookahead_minutes"
+            type="number"
+            min="0"
+            class="input"
+          />
+          <span class="muted small">за сколько до приёма слать первое</span>
+        </div>
+        <div class="field">
+          <label>Период шедулера, сек</label>
+          <input
+            v-model.number="appSettings.scheduler_tick_seconds"
+            type="number"
+            min="1"
+            class="input"
+          />
+          <span class="muted small">как часто проверять напоминания</span>
+        </div>
+      </div>
+      <div class="actions">
+        <button
+          class="btn btn-primary"
+          :disabled="savingSettings"
+          @click="saveAppSettings"
+        >
+          {{ savingSettings ? "Сохраняю…" : "Сохранить настройки" }}
+        </button>
+      </div>
+    </section>
+
     <section v-if="settings.householdId != null" class="card pad">
       <h3>🗓️ Инструменты</h3>
       <div class="tools">
@@ -275,6 +458,44 @@ async function downloadCsv() {
   flex: 1;
   min-width: 220px;
 }
+.grid-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+.field .muted.small {
+  margin-top: 0.15rem;
+}
+.members {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.member-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.7rem 1rem;
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+}
+.member-name {
+  flex: 1;
+  min-width: 0;
+}
+.order-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.order-input {
+  width: 84px;
+}
+.notify-field {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
 .tools {
   display: flex;
   flex-direction: column;
@@ -307,6 +528,12 @@ async function downloadCsv() {
 @media (max-width: 720px) {
   .grid {
     grid-template-columns: 1fr;
+  }
+  .grid-4 {
+    grid-template-columns: 1fr 1fr;
+  }
+  .member-row {
+    flex-wrap: wrap;
   }
 }
 </style>

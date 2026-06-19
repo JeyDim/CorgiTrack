@@ -35,6 +35,31 @@ export interface FamilyMember {
   created_at: string;
 }
 
+/** Частичное обновление члена семьи: переданы только изменяемые поля. */
+export interface UpdateMember {
+  display_name?: string;
+  telegram_user_id?: number | null;
+  notify?: boolean;
+  escalation_order?: number;
+}
+
+export interface AppSettings {
+  /** Пауза после первого напоминания до повторного вопроса тому же человеку (минуты). */
+  escalation_first_delay_minutes: number;
+  /** Пауза между последующими шагами эскалации — повтор/следующий по списку (минуты). */
+  escalation_step_minutes: number;
+  /** За сколько до приёма слать первое напоминание (минуты). */
+  reminder_lookahead_minutes: number;
+  /** Период фонового шедулера напоминаний (секунды). */
+  scheduler_tick_seconds: number;
+  updated_at: string;
+}
+
+/** Частичное обновление настроек: переданы только изменяемые поля. */
+export type UpdateAppSettings = Partial<
+  Omit<AppSettings, "updated_at">
+>;
+
 export interface Treatment {
   id: number;
   dog_id: number;

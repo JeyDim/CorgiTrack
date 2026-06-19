@@ -33,6 +33,20 @@ impl DoseStatus {
     }
 }
 
+/// Глобальные операционные настройки (одна строка в таблице app_settings).
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+pub struct AppSettings {
+    /// Пауза после первого напоминания до повторного вопроса тому же человеку (минуты).
+    pub escalation_first_delay_minutes: i32,
+    /// Пауза между последующими шагами эскалации — повтор/следующий по списку (минуты).
+    pub escalation_step_minutes: i32,
+    /// За сколько до приёма рассылать первое напоминание (минуты).
+    pub reminder_lookahead_minutes: i32,
+    /// Период фонового шедулера напоминаний (секунды).
+    pub scheduler_tick_seconds: i32,
+    pub updated_at: DateTime<Utc>,
+}
+
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct Household {
     pub id: i32,
