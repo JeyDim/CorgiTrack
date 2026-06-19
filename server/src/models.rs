@@ -87,6 +87,8 @@ pub struct Treatment {
     pub reminder_time: NaiveTime,
     pub instructions: Option<String>,
     pub active: bool,
+    /// Текущая ветклиника назначения (для прививок); снимок попадает в дозу при приёме.
+    pub clinic: Option<String>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -105,6 +107,8 @@ pub struct Dose {
     pub taken_at: Option<DateTime<Utc>>,
     pub confirmed_by_member_id: Option<i32>,
     pub note: Option<String>,
+    /// Ветклиника на момент приёма — снимок из treatments.clinic при отметке «принято».
+    pub clinic: Option<String>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -132,6 +136,8 @@ pub struct DoseView {
     pub reminded_at: Option<DateTime<Utc>>,
     pub taken_at: Option<DateTime<Utc>>,
     pub note: Option<String>,
+    /// Ветклиника записи: снимок дозы, для старых записей — откат к клинике лечения.
+    pub clinic: Option<String>,
 }
 
 impl DoseView {
@@ -148,6 +154,7 @@ impl DoseView {
             reminded_at: d.dose.reminded_at,
             taken_at: d.dose.taken_at,
             note: d.dose.note.clone(),
+            clinic: d.dose.clinic.clone().or_else(|| d.treatment.clinic.clone()),
         }
     }
 }

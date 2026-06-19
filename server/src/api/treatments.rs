@@ -32,6 +32,8 @@ pub struct CreateTreatment {
     pub reminder_time: Option<NaiveTime>,
     pub instructions: Option<String>,
     pub active: Option<bool>,
+    /// Ветклиника (для прививок).
+    pub clinic: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -44,6 +46,7 @@ pub struct UpdateTreatment {
     pub reminder_time: Option<NaiveTime>,
     pub instructions: Option<String>,
     pub active: Option<bool>,
+    pub clinic: Option<String>,
 }
 
 async fn list(
@@ -72,8 +75,8 @@ async fn create(
 ) -> AppResult<Json<Treatment>> {
     let row = sqlx::query_as::<_, Treatment>(
         "INSERT INTO treatments \
-            (dog_id, name, kind, dose_label, cycle_days, start_at, reminder_time, instructions, active) \
-         VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, '09:00'::time), $8, COALESCE($9, TRUE)) \
+            (dog_id, name, kind, dose_label, cycle_days, start_at, reminder_time, instructions, active, clinic) \
+         VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, '09:00'::time), $8, COALESCE($9, TRUE), $10) \
          RETURNING *",
     )
     .bind(body.dog_id)
@@ -85,6 +88,7 @@ async fn create(
     .bind(body.reminder_time)
     .bind(body.instructions)
     .bind(body.active)
+    .bind(body.clinic)
     .fetch_one(&state.pool)
     .await?;
     Ok(Json(row))
@@ -113,7 +117,8 @@ async fn update(
             start_at = COALESCE($6, start_at), \
             reminder_time = COALESCE($7, reminder_time), \
             instructions = COALESCE($8, instructions), \
-            active = COALESCE($9, active) \
+            active = COALESCE($9, active), \
+            clinic = COALESCE($10, clinic) \
          WHERE id = $1 RETURNING *",
     )
     .bind(id)
@@ -125,6 +130,7 @@ async fn update(
     .bind(body.reminder_time)
     .bind(body.instructions)
     .bind(body.active)
+    .bind(body.clinic)
     .fetch_optional(&state.pool)
     .await?
     .map(Json)

@@ -1,6 +1,7 @@
 services:
   app:
     image: cr.selcloud.ru/kip-sapp/corgi-track:v2.0.0
+    pull_policy:  never
     build:
       context: ./server
     environment:

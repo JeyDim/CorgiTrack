@@ -53,6 +53,9 @@ CREATE TABLE IF NOT EXISTS treatments (
     reminder_time TIME          NOT NULL DEFAULT '09:00',
     instructions  TEXT,
     active        BOOLEAN       NOT NULL DEFAULT TRUE,
+    -- Текущая ветклиника назначения (для прививок). Снимок этой клиники
+    -- копируется в дозу при отметке «принято» — см. doses.clinic.
+    clinic        VARCHAR(160),
     created_at    TIMESTAMPTZ   NOT NULL DEFAULT now()
 );
 
@@ -70,6 +73,9 @@ CREATE TABLE IF NOT EXISTS doses (
     taken_at               TIMESTAMPTZ,
     confirmed_by_member_id INTEGER     REFERENCES family_members(id),
     note                   TEXT,
+    -- Ветклиника на момент приёма (снимок из treatments.clinic при отметке
+    -- «принято»). Хранится на дозе, чтобы смена клиники не меняла историю.
+    clinic                 VARCHAR(160),
     created_at             TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -78,6 +84,18 @@ ALTER TABLE doses ADD COLUMN IF NOT EXISTS api_key VARCHAR(64);
 -- Колонки эскалации для уже существующих БД.
 ALTER TABLE doses ADD COLUMN IF NOT EXISTS escalation_level  INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE doses ADD COLUMN IF NOT EXISTS last_escalated_at TIMESTAMPTZ;
+-- Ветклиника: на лечении (текущая) и на дозе (снимок при приёме) для старых БД.
+ALTER TABLE treatments ADD COLUMN IF NOT EXISTS clinic VARCHAR(160);
+ALTER TABLE doses      ADD COLUMN IF NOT EXISTS clinic VARCHAR(160);
+
+-- В старых БД (из Python-версии) у created_at не было DEFAULT — приложение
+-- проставляло время само. Rust-API вставляет строки без created_at, поэтому
+-- идемпотентно проставляем DEFAULT now(), чтобы INSERT не падал на NOT NULL.
+ALTER TABLE households     ALTER COLUMN created_at SET DEFAULT now();
+ALTER TABLE dogs           ALTER COLUMN created_at SET DEFAULT now();
+ALTER TABLE family_members ALTER COLUMN created_at SET DEFAULT now();
+ALTER TABLE treatments     ALTER COLUMN created_at SET DEFAULT now();
+ALTER TABLE doses          ALTER COLUMN created_at SET DEFAULT now();
 
 CREATE INDEX        IF NOT EXISTS ix_doses_due_at  ON doses (due_at);
 CREATE INDEX        IF NOT EXISTS ix_doses_status  ON doses (status);

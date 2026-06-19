@@ -4,6 +4,7 @@ import { useSettingsStore } from "../stores/settings";
 // Хеш-история — безопаснее для Tauri (нет сервера, который раздавал бы маршруты).
 const Dashboard = () => import("../views/Dashboard.vue");
 const Treatments = () => import("../views/Treatments.vue");
+const VetBook = () => import("../views/VetBook.vue");
 const Settings = () => import("../views/Settings.vue");
 
 export const router = createRouter({
@@ -21,6 +22,12 @@ export const router = createRouter({
       name: "treatments",
       component: Treatments,
       meta: { title: "Лечения", icon: "💊" },
+    },
+    {
+      path: "/vetbook",
+      name: "vetbook",
+      component: VetBook,
+      meta: { title: "Веткнига", icon: "📖" },
     },
     {
       path: "/settings",

@@ -72,6 +72,8 @@ export interface Treatment {
   reminder_time: string;
   instructions: string | null;
   active: boolean;
+  /** Текущая ветклиника назначения (для прививок). */
+  clinic: string | null;
   created_at: string;
 }
 
@@ -88,6 +90,8 @@ export interface DoseView {
   reminded_at: string | null;
   taken_at: string | null;
   note: string | null;
+  /** Ветклиника записи: снимок дозы, для старых записей — клиника лечения. */
+  clinic: string | null;
 }
 
 /** Сырой ряд дозы, который возвращает POST /doses/{id}/status. */
@@ -115,6 +119,7 @@ export interface CreateTreatment {
   reminder_time?: string | null;
   instructions?: string | null;
   active?: boolean | null;
+  clinic?: string | null;
 }
 
 export type UpdateTreatment = Partial<Omit<CreateTreatment, "dog_id">>;

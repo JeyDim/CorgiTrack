@@ -98,6 +98,9 @@ pub async fn update_status(
             status = $2, \
             note = COALESCE($3, note), \
             taken_at = CASE WHEN $2 = 'taken' THEN now() ELSE taken_at END, \
+            clinic = CASE WHEN $2 = 'taken' \
+                THEN COALESCE(clinic, (SELECT t.clinic FROM treatments t WHERE t.id = doses.treatment_id)) \
+                ELSE clinic END, \
             confirmed_by_member_id = COALESCE($4, confirmed_by_member_id) \
          WHERE id = $1 RETURNING *",
     )

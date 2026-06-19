@@ -31,6 +31,7 @@ const form = reactive({
     : toDatetimeLocal(new Date().toISOString()),
   reminder_time: props.treatment?.reminder_time?.slice(0, 5) ?? "09:00",
   instructions: props.treatment?.instructions ?? "",
+  clinic: props.treatment?.clinic ?? "",
   active: props.treatment?.active ?? true,
 });
 
@@ -55,6 +56,8 @@ async function submit() {
       start_at: new Date(form.start_at).toISOString(),
       reminder_time: `${form.reminder_time}:00`,
       instructions: form.instructions.trim() || null,
+      // Клиника осмысленна только для прививок — для таблеток не отправляем.
+      clinic: form.kind === "vaccine" ? form.clinic.trim() || null : null,
       active: form.active,
     };
 
@@ -109,6 +112,16 @@ async function submit() {
         </div>
       </div>
 
+      <div v-if="form.kind === 'vaccine'" class="field">
+        <label>Ветклиника</label>
+        <input
+          v-model="form.clinic"
+          class="input"
+          placeholder="Напр. Беланта на Авиамоторной"
+        />
+        <span class="hint muted">Попадёт штампом в «Веткнигу» при отметке приёма.</span>
+      </div>
+
       <div class="two">
         <div class="field">
           <label>Цикл, дней</label>
@@ -159,6 +172,9 @@ async function submit() {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.85rem;
+}
+.hint {
+  font-size: 0.78rem;
 }
 .check {
   display: flex;

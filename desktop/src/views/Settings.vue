@@ -197,7 +197,10 @@ async function checkUpdates() {
       toast.success("У вас последняя версия 🎉");
     }
   } catch (e) {
-    toast.error(`Не удалось проверить обновления: ${(e as Error).message}`);
+    // Плагин updater отклоняется строкой, а не Error — берём message только
+    // если он есть, иначе сериализуем как есть, чтобы не показывать "undefined".
+    const msg = e instanceof Error ? e.message : String(e);
+    toast.error(`Не удалось проверить обновления: ${msg}`);
   } finally {
     checkingUpdate.value = false;
   }

@@ -77,9 +77,9 @@ pub async fn ensure_future_doses(
 pub(crate) const DETAIL_SELECT: &str = "SELECT \
     d.id AS dose_id, d.treatment_id AS dose_treatment_id, d.due_at, d.status, d.api_key, \
     d.reminded_at, d.escalation_level, d.last_escalated_at, \
-    d.taken_at, d.confirmed_by_member_id, d.note, d.created_at AS dose_created_at, \
+    d.taken_at, d.confirmed_by_member_id, d.note, d.clinic AS dose_clinic, d.created_at AS dose_created_at, \
     t.id AS t_id, t.dog_id AS t_dog_id, t.name AS t_name, t.kind AS t_kind, t.dose_label, \
-    t.cycle_days, t.start_at, t.reminder_time, t.instructions, t.active, t.created_at AS t_created_at, \
+    t.cycle_days, t.start_at, t.reminder_time, t.instructions, t.active, t.clinic AS t_clinic, t.created_at AS t_created_at, \
     g.name AS dog_name, g.household_id AS household_id \
     FROM doses d \
     JOIN treatments t ON t.id = d.treatment_id \
@@ -98,6 +98,7 @@ pub(crate) fn row_to_detail(row: &PgRow) -> Result<DoseDetail, sqlx::Error> {
         taken_at: row.try_get("taken_at")?,
         confirmed_by_member_id: row.try_get("confirmed_by_member_id")?,
         note: row.try_get("note")?,
+        clinic: row.try_get("dose_clinic")?,
         created_at: row.try_get("dose_created_at")?,
     };
     let treatment = Treatment {
@@ -111,6 +112,7 @@ pub(crate) fn row_to_detail(row: &PgRow) -> Result<DoseDetail, sqlx::Error> {
         reminder_time: row.try_get("reminder_time")?,
         instructions: row.try_get("instructions")?,
         active: row.try_get("active")?,
+        clinic: row.try_get("t_clinic")?,
         created_at: row.try_get("t_created_at")?,
     };
     Ok(DoseDetail {
@@ -172,7 +174,9 @@ pub async fn mark_taken(
     };
     sqlx::query_as::<_, Dose>(
         "UPDATE doses SET status = 'taken', taken_at = now(), \
-         confirmed_by_member_id = $2, note = $3 WHERE id = $1 RETURNING *",
+         confirmed_by_member_id = $2, note = $3, \
+         clinic = COALESCE(clinic, (SELECT t.clinic FROM treatments t WHERE t.id = doses.treatment_id)) \
+         WHERE id = $1 RETURNING *",
     )
     .bind(dose_id)
     .bind(member.id)
@@ -189,7 +193,8 @@ pub async fn mark_taken_by_api_key(
     note: Option<&str>,
 ) -> Result<Option<Dose>, sqlx::Error> {
     sqlx::query_as::<_, Dose>(
-        "UPDATE doses SET status = 'taken', taken_at = now(), note = $3 \
+        "UPDATE doses SET status = 'taken', taken_at = now(), note = $3, \
+         clinic = COALESCE(clinic, (SELECT t.clinic FROM treatments t WHERE t.id = doses.treatment_id)) \
          WHERE id = $1 AND api_key = $2 RETURNING *",
     )
     .bind(dose_id)
