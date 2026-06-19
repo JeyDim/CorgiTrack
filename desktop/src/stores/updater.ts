@@ -25,17 +25,26 @@ export const useUpdaterStore = defineStore("updater", {
     async check() {
       if (this.installing) return;
       try {
-        const update = await check();
-        if (update) {
-          pending = update;
-          this.available = true;
-          this.version = update.version;
-          this.notes = update.body;
-          this.dismissed = false; // новая версия — показываем баннер снова
-        }
+        await this.checkNow();
       } catch (e) {
         console.warn("[updater] проверка обновлений не удалась:", e);
       }
+    },
+
+    // Ручная проверка из настроек. В отличие от check() не глушит ошибки и
+    // возвращает результат, чтобы UI показал тост. Если версия доступна —
+    // взводит флаги, и UpdateBanner появится сам.
+    async checkNow(): Promise<"available" | "uptodate"> {
+      const update = await check();
+      if (update) {
+        pending = update;
+        this.available = true;
+        this.version = update.version;
+        this.notes = update.body;
+        this.dismissed = false; // новая версия — показываем баннер снова
+        return "available";
+      }
+      return "uptodate";
     },
 
     // Запуск из App.vue: сразу проверяем и дальше раз в час.

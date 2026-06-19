@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import { getVersion } from "@tauri-apps/api/app";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -8,9 +9,16 @@ import { CorgiApi } from "../api/client";
 import type { AppSettings, FamilyMember, Household } from "../api/types";
 import { useSettingsStore } from "../stores/settings";
 import { useToastStore } from "../stores/toast";
+import { useUpdaterStore } from "../stores/updater";
 
 const settings = useSettingsStore();
 const toast = useToastStore();
+const updater = useUpdaterStore();
+
+// Версия приложения из tauri.conf.json. В dev через браузер вызов недоступен —
+// тогда оставляем прочерк.
+const appVersion = ref("…");
+const checkingUpdate = ref(false);
 
 const baseUrl = ref(settings.baseUrl);
 const token = ref(settings.token);
@@ -32,6 +40,12 @@ const members = ref<FamilyMember[]>([]);
 const savingMembers = ref(false);
 
 onMounted(async () => {
+  try {
+    appVersion.value = await getVersion();
+  } catch {
+    appVersion.value = "—"; // запуск вне Tauri (dev в браузере)
+  }
+
   // Если уже настроено — подтянем список семей и глобальные настройки.
   if (settings.configured) {
     try {
@@ -169,6 +183,23 @@ async function openCalendar() {
     await openUrl(calendarUrl.value);
   } catch (e) {
     toast.error(`Не удалось открыть: ${(e as Error).message}`);
+  }
+}
+
+async function checkUpdates() {
+  checkingUpdate.value = true;
+  try {
+    const res = await updater.checkNow();
+    if (res === "available") {
+      // Баннер обновления покажется сам — он реагирует на updater.available.
+      toast.success(`Доступна версия ${updater.version}`);
+    } else {
+      toast.success("У вас последняя версия 🎉");
+    }
+  } catch (e) {
+    toast.error(`Не удалось проверить обновления: ${(e as Error).message}`);
+  } finally {
+    checkingUpdate.value = false;
   }
 }
 
@@ -407,6 +438,19 @@ async function downloadCsv() {
             {{ downloading ? "Сохраняю…" : "💾 Скачать CSV" }}
           </button>
         </div>
+      </div>
+    </section>
+
+    <section class="card pad">
+      <h3>ℹ️ О приложении</h3>
+      <div class="tool">
+        <div class="stack">
+          <strong>CorgiTrack</strong>
+          <span class="muted small">Версия {{ appVersion }}</span>
+        </div>
+        <button class="btn btn-sm" :disabled="checkingUpdate" @click="checkUpdates">
+          {{ checkingUpdate ? "Проверяю…" : "🔄 Проверить обновления" }}
+        </button>
       </div>
     </section>
   </div>

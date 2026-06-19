@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
+import { computed, onMounted, ref } from "vue";
+import { getVersion } from "@tauri-apps/api/app";
 import { useRouter } from "vue-router";
 import { useSettingsStore } from "./stores/settings";
 import { useUpdaterStore } from "./stores/updater";
@@ -10,8 +11,19 @@ const router = useRouter();
 const settings = useSettingsStore();
 const updater = useUpdaterStore();
 
+// Версия из tauri.conf.json для подписи в сайдбаре. Вне Tauri (dev в браузере)
+// вызов недоступен — оставляем пусто.
+const appVersion = ref("");
+
 // Проверяем обновления на старте и далее раз в час.
-onMounted(() => updater.startAuto());
+onMounted(async () => {
+  updater.startAuto();
+  try {
+    appVersion.value = await getVersion();
+  } catch {
+    /* запуск вне Tauri — версию не показываем */
+  }
+});
 
 const navItems = computed(() =>
   router.options.routes
@@ -57,9 +69,12 @@ const host = computed(() => {
         </RouterLink>
       </nav>
 
-      <div class="conn" :class="{ on: settings.configured }">
-        <span class="dot" />
-        <span class="conn-host">{{ host }}</span>
+      <div class="foot">
+        <div class="conn" :class="{ on: settings.configured }">
+          <span class="dot" />
+          <span class="conn-host">{{ host }}</span>
+        </div>
+        <span v-if="appVersion" class="version">v{{ appVersion }}</span>
       </div>
     </aside>
 
@@ -154,8 +169,13 @@ const host = computed(() => {
   text-align: center;
 }
 
-.conn {
+.foot {
   margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.conn {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -164,6 +184,12 @@ const host = computed(() => {
   background: var(--paper-deep);
   font-size: 0.78rem;
   color: var(--ink-soft);
+}
+.version {
+  align-self: center;
+  font-size: 0.7rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.02em;
 }
 .conn .dot {
   width: 9px;
