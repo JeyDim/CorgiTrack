@@ -30,6 +30,8 @@ export interface FamilyMember {
   display_name: string;
   telegram_user_id: number | null;
   notify: boolean;
+  /** Порядок обзвона при эскалации: 0 уведомляется первым, затем 1, 2, ... */
+  escalation_order: number;
   created_at: string;
 }
 

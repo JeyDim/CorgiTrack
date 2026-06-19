@@ -25,6 +25,7 @@ pub struct CreateMember {
     pub display_name: String,
     pub telegram_user_id: Option<i64>,
     pub notify: Option<bool>,
+    pub escalation_order: Option<i32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -32,6 +33,7 @@ pub struct UpdateMember {
     pub display_name: Option<String>,
     pub telegram_user_id: Option<i64>,
     pub notify: Option<bool>,
+    pub escalation_order: Option<i32>,
 }
 
 async fn list(
@@ -61,13 +63,15 @@ async fn create(
     Json(body): Json<CreateMember>,
 ) -> AppResult<Json<FamilyMember>> {
     let row = sqlx::query_as::<_, FamilyMember>(
-        "INSERT INTO family_members (household_id, display_name, telegram_user_id, notify) \
-         VALUES ($1, $2, $3, COALESCE($4, TRUE)) RETURNING *",
+        "INSERT INTO family_members \
+            (household_id, display_name, telegram_user_id, notify, escalation_order) \
+         VALUES ($1, $2, $3, COALESCE($4, TRUE), COALESCE($5, 0)) RETURNING *",
     )
     .bind(body.household_id)
     .bind(body.display_name)
     .bind(body.telegram_user_id)
     .bind(body.notify)
+    .bind(body.escalation_order)
     .fetch_one(&state.pool)
     .await?;
     Ok(Json(row))
@@ -94,13 +98,15 @@ async fn update(
         "UPDATE family_members SET \
             display_name = COALESCE($2, display_name), \
             telegram_user_id = COALESCE($3, telegram_user_id), \
-            notify = COALESCE($4, notify) \
+            notify = COALESCE($4, notify), \
+            escalation_order = COALESCE($5, escalation_order) \
          WHERE id = $1 RETURNING *",
     )
     .bind(id)
     .bind(body.display_name)
     .bind(body.telegram_user_id)
     .bind(body.notify)
+    .bind(body.escalation_order)
     .fetch_optional(&state.pool)
     .await?
     .map(Json)

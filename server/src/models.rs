@@ -48,6 +48,8 @@ pub struct FamilyMember {
     pub display_name: String,
     pub telegram_user_id: Option<i64>,
     pub notify: bool,
+    /// Порядок обзвона при эскалации: 0 уведомляется первым, затем 1, 2, ...
+    pub escalation_order: i32,
     pub created_at: DateTime<Utc>,
 }
 
@@ -82,6 +84,10 @@ pub struct Dose {
     pub status: DoseStatus,
     pub api_key: Option<String>,
     pub reminded_at: Option<DateTime<Utc>>,
+    /// Текущий шаг эскалации: 0 — не уведомляли, 1 — отправлено первое напоминание, далее +1 за шаг.
+    pub escalation_level: i32,
+    /// Момент последнего шага эскалации (от него отсчитываются интервалы ожидания).
+    pub last_escalated_at: Option<DateTime<Utc>>,
     pub taken_at: Option<DateTime<Utc>>,
     pub confirmed_by_member_id: Option<i32>,
     pub note: Option<String>,

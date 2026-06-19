@@ -3,7 +3,9 @@ use chrono_tz::Tz;
 
 use corgitrack::models::{Dose, DoseDetail, DoseStatus, Treatment, TreatmentKind};
 use corgitrack::services::calendar::{event_description, mark_taken_url};
-use corgitrack::services::schedules::{combine_due, iter_due_dates};
+use corgitrack::services::schedules::{
+    combine_due, iter_due_dates, next_escalation_action, EscalationAction,
+};
 
 fn astrakhan() -> Tz {
     "Europe/Astrakhan".parse().unwrap()
@@ -57,6 +59,57 @@ fn calendar_description_contains_api_mark_link() {
     assert!(description.contains(&format!("Отметить прием: {url}")));
 }
 
+#[test]
+fn escalation_waits_until_first_delay_then_reasks_primary() {
+    let t0 = at(2026, 5, 1, 9, 0);
+    // level 1 = первое напоминание отправлено №0; до 30 минут — ждём.
+    assert_eq!(
+        next_escalation_action(1, Some(t0), 2, at(2026, 5, 1, 9, 29), 30, 5),
+        EscalationAction::Wait
+    );
+    // ровно 30 минут — повтор тому же участнику №0.
+    assert_eq!(
+        next_escalation_action(1, Some(t0), 2, at(2026, 5, 1, 9, 30), 30, 5),
+        EscalationAction::Notify {
+            member_index: 0,
+            next_level: 2
+        }
+    );
+}
+
+#[test]
+fn escalation_steps_to_next_member_then_missed() {
+    let t1 = at(2026, 5, 1, 9, 30); // момент повторного вопроса №0
+                                    // через 5 минут после повтора — следующий по списку (№1, жена).
+    assert_eq!(
+        next_escalation_action(2, Some(t1), 2, at(2026, 5, 1, 9, 35), 30, 5),
+        EscalationAction::Notify {
+            member_index: 1,
+            next_level: 3
+        }
+    );
+    // участники кончились (их всего 2) — доза пропущена.
+    let t2 = at(2026, 5, 1, 9, 35);
+    assert_eq!(
+        next_escalation_action(3, Some(t2), 2, at(2026, 5, 1, 9, 40), 30, 5),
+        EscalationAction::Missed
+    );
+}
+
+#[test]
+fn escalation_noop_without_state() {
+    let now = at(2026, 5, 1, 9, 40);
+    // уровень 0 (ещё не уведомляли) и отсутствие отметки времени — ничего не делаем.
+    assert_eq!(
+        next_escalation_action(0, Some(now), 2, now, 30, 5),
+        EscalationAction::Wait
+    );
+    assert_eq!(
+        next_escalation_action(1, None, 2, now, 30, 5),
+        EscalationAction::Wait
+    );
+}
+
 fn sample_detail() -> DoseDetail {
     let now = at(2026, 5, 1, 5, 0);
     let treatment = Treatment {
@@ -79,6 +132,8 @@ fn sample_detail() -> DoseDetail {
         status: DoseStatus::Planned,
         api_key: Some("secret-key-123456789".to_string()),
         reminded_at: None,
+        escalation_level: 0,
+        last_escalated_at: None,
         taken_at: None,
         confirmed_by_member_id: None,
         note: None,

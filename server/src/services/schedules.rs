@@ -76,7 +76,8 @@ pub async fn ensure_future_doses(
 
 pub(crate) const DETAIL_SELECT: &str = "SELECT \
     d.id AS dose_id, d.treatment_id AS dose_treatment_id, d.due_at, d.status, d.api_key, \
-    d.reminded_at, d.taken_at, d.confirmed_by_member_id, d.note, d.created_at AS dose_created_at, \
+    d.reminded_at, d.escalation_level, d.last_escalated_at, \
+    d.taken_at, d.confirmed_by_member_id, d.note, d.created_at AS dose_created_at, \
     t.id AS t_id, t.dog_id AS t_dog_id, t.name AS t_name, t.kind AS t_kind, t.dose_label, \
     t.cycle_days, t.start_at, t.reminder_time, t.instructions, t.active, t.created_at AS t_created_at, \
     g.name AS dog_name, g.household_id AS household_id \
@@ -92,6 +93,8 @@ pub(crate) fn row_to_detail(row: &PgRow) -> Result<DoseDetail, sqlx::Error> {
         status: row.try_get("status")?,
         api_key: row.try_get("api_key")?,
         reminded_at: row.try_get("reminded_at")?,
+        escalation_level: row.try_get("escalation_level")?,
+        last_escalated_at: row.try_get("last_escalated_at")?,
         taken_at: row.try_get("taken_at")?,
         confirmed_by_member_id: row.try_get("confirmed_by_member_id")?,
         note: row.try_get("note")?,
@@ -196,29 +199,104 @@ pub async fn mark_taken_by_api_key(
     .await
 }
 
-/// Перевести просроченные напоминания (reminded) в missed после grace-периода.
-pub async fn mark_overdue_as_missed(
+/// Все активные напоминания (статус reminded) с деталями — для шага эскалации.
+pub async fn get_reminded_doses(pool: &PgPool) -> Result<Vec<DoseDetail>, sqlx::Error> {
+    let sql =
+        format!("{DETAIL_SELECT} WHERE t.active = true AND d.status = 'reminded' ORDER BY d.due_at");
+    let rows = sqlx::query(&sql).fetch_all(pool).await?;
+    rows.iter().map(row_to_detail).collect()
+}
+
+/// Члены семьи, подлежащие уведомлению, в порядке эскалации (0 — первым).
+pub async fn ordered_notify_members(
     pool: &PgPool,
-    grace_minutes: i64,
-) -> Result<Vec<DoseDetail>, sqlx::Error> {
-    let cutoff = Utc::now() - Duration::minutes(grace_minutes);
-    let sql = format!(
-        "{DETAIL_SELECT} WHERE t.active = true AND d.status = 'reminded' AND d.due_at <= $1"
-    );
-    let rows = sqlx::query(&sql).bind(cutoff).fetch_all(pool).await?;
-    let mut details: Vec<DoseDetail> = rows.iter().map(row_to_detail).collect::<Result<_, _>>()?;
-    if details.is_empty() {
-        return Ok(details);
-    }
-    let ids: Vec<i32> = details.iter().map(|d| d.dose.id).collect();
-    sqlx::query("UPDATE doses SET status = 'missed' WHERE id = ANY($1)")
-        .bind(&ids)
+    household_id: i32,
+) -> Result<Vec<FamilyMember>, sqlx::Error> {
+    sqlx::query_as::<_, FamilyMember>(
+        "SELECT * FROM family_members \
+         WHERE household_id = $1 AND notify = TRUE AND telegram_user_id IS NOT NULL \
+         ORDER BY escalation_order, id",
+    )
+    .bind(household_id)
+    .fetch_all(pool)
+    .await
+}
+
+/// Зафиксировать шаг эскалации: новый уровень и момент отправки.
+pub async fn advance_escalation(
+    pool: &PgPool,
+    dose_id: i32,
+    next_level: i32,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "UPDATE doses SET escalation_level = $2, last_escalated_at = now() \
+         WHERE id = $1 AND status = 'reminded'",
+    )
+    .bind(dose_id)
+    .bind(next_level)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Перевести дозу в missed (эскалация исчерпала всех членов семьи).
+pub async fn mark_missed(pool: &PgPool, dose_id: i32) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE doses SET status = 'missed' WHERE id = $1 AND status = 'reminded'")
+        .bind(dose_id)
         .execute(pool)
         .await?;
-    for d in &mut details {
-        d.dose.status = DoseStatus::Missed;
+    Ok(())
+}
+
+/// Что делать с напоминанием на текущем тике эскалации.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EscalationAction {
+    /// Интервал ещё не вышел — ничего не делаем.
+    Wait,
+    /// Уведомить участника с этим индексом в списке эскалации и поднять уровень.
+    Notify { member_index: usize, next_level: i32 },
+    /// Список исчерпан — отметить дозу пропущенной.
+    Missed,
+}
+
+/// Чистое правило эскалации: по текущему уровню/времени решает следующий шаг.
+///
+/// Уровни: 1 — отправлено первое напоминание участнику №0; ожидание
+/// `first_delay` → повтор тому же участнику №0 (уровень 2); далее каждые `step`
+/// минут уведомляется следующий участник по списку. Когда участники кончились —
+/// доза переходит в missed.
+pub fn next_escalation_action(
+    level: i32,
+    last_escalated_at: Option<DateTime<Utc>>,
+    member_count: usize,
+    now: DateTime<Utc>,
+    first_delay_minutes: i64,
+    step_minutes: i64,
+) -> EscalationAction {
+    if level < 1 {
+        return EscalationAction::Wait;
     }
-    Ok(details)
+    let Some(last) = last_escalated_at else {
+        return EscalationAction::Wait;
+    };
+    let required = if level == 1 {
+        first_delay_minutes
+    } else {
+        step_minutes
+    };
+    if now - last < Duration::minutes(required) {
+        return EscalationAction::Wait;
+    }
+    // Индекс участника для шага: уровень 1 -> повтор №0, уровень 2 -> №1, и т.д.
+    let member_index = (level - 1) as usize;
+    if member_index < member_count {
+        EscalationAction::Notify {
+            member_index,
+            next_level: level + 1,
+        }
+    } else {
+        EscalationAction::Missed
+    }
 }
 
 /// Перевести наступившие planned-дозы в reminded (готовые к рассылке напоминаний).
@@ -243,14 +321,19 @@ pub async fn mark_ready_to_remind(
         return Ok(details);
     }
     let ids: Vec<i32> = details.iter().map(|d| d.dose.id).collect();
-    sqlx::query("UPDATE doses SET status = 'reminded', reminded_at = $2 WHERE id = ANY($1)")
-        .bind(&ids)
-        .bind(now)
-        .execute(pool)
-        .await?;
+    sqlx::query(
+        "UPDATE doses SET status = 'reminded', reminded_at = $2, \
+         escalation_level = 1, last_escalated_at = $2 WHERE id = ANY($1)",
+    )
+    .bind(&ids)
+    .bind(now)
+    .execute(pool)
+    .await?;
     for d in &mut details {
         d.dose.status = DoseStatus::Reminded;
         d.dose.reminded_at = Some(now);
+        d.dose.escalation_level = 1;
+        d.dose.last_escalated_at = Some(now);
     }
     Ok(details)
 }

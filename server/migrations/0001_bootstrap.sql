@@ -27,8 +27,13 @@ CREATE TABLE IF NOT EXISTS family_members (
     display_name     VARCHAR(120) NOT NULL,
     telegram_user_id BIGINT      UNIQUE,
     notify           BOOLEAN     NOT NULL DEFAULT TRUE,
+    -- Порядок обзвона при эскалации: 0 уведомляется первым, затем 1, 2, ...
+    escalation_order INTEGER     NOT NULL DEFAULT 0,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- На случай уже существующей таблицы family_members без колонки порядка эскалации.
+ALTER TABLE family_members ADD COLUMN IF NOT EXISTS escalation_order INTEGER NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS dogs (
     id           SERIAL PRIMARY KEY,
@@ -58,6 +63,10 @@ CREATE TABLE IF NOT EXISTS doses (
     status                 dosestatus  NOT NULL DEFAULT 'planned',
     api_key                VARCHAR(64),
     reminded_at            TIMESTAMPTZ,
+    -- Состояние эскалации: 0 — ещё не уведомляли, 1 — отправлено первое напоминание,
+    -- далее каждый шаг увеличивает уровень (повтор первому, затем следующие по списку).
+    escalation_level       INTEGER     NOT NULL DEFAULT 0,
+    last_escalated_at      TIMESTAMPTZ,
     taken_at               TIMESTAMPTZ,
     confirmed_by_member_id INTEGER     REFERENCES family_members(id),
     note                   TEXT,
@@ -66,6 +75,9 @@ CREATE TABLE IF NOT EXISTS doses (
 
 -- На случай уже существующей таблицы doses без колонки api_key (старые БД).
 ALTER TABLE doses ADD COLUMN IF NOT EXISTS api_key VARCHAR(64);
+-- Колонки эскалации для уже существующих БД.
+ALTER TABLE doses ADD COLUMN IF NOT EXISTS escalation_level  INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE doses ADD COLUMN IF NOT EXISTS last_escalated_at TIMESTAMPTZ;
 
 CREATE INDEX        IF NOT EXISTS ix_doses_due_at  ON doses (due_at);
 CREATE INDEX        IF NOT EXISTS ix_doses_status  ON doses (status);

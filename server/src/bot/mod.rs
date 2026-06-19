@@ -1,8 +1,7 @@
 use std::time::Duration as StdDuration;
 
-use chrono::Duration;
+use chrono::{Duration, Utc};
 use chrono_tz::Tz;
-use sqlx::PgPool;
 use teloxide::prelude::*;
 use teloxide::types::{ChatId, InlineKeyboardButton, InlineKeyboardMarkup, InputFile};
 use teloxide::utils::command::BotCommands;
@@ -11,8 +10,9 @@ use url::Url;
 use crate::models::{DoseDetail, FamilyMember};
 use crate::services::reports::taken_csv_for_household;
 use crate::services::schedules::{
-    ensure_future_doses, get_due_for_household, get_household_for_telegram, mark_overdue_as_missed,
-    mark_ready_to_remind, mark_taken,
+    advance_escalation, ensure_future_doses, get_due_for_household, get_household_for_telegram,
+    get_reminded_doses, mark_missed, mark_ready_to_remind, mark_taken, next_escalation_action,
+    ordered_notify_members, EscalationAction,
 };
 use crate::state::AppState;
 use crate::util::timezone;
@@ -253,46 +253,69 @@ async fn run_scheduler(bot: Bot, state: AppState) {
 async fn notify_due(bot: &Bot, state: &AppState, tz: Tz) -> anyhow::Result<()> {
     ensure_future_doses(&state.pool, tz, 370).await?;
 
-    let ready =
-        mark_ready_to_remind(&state.pool, state.settings.reminder_lookahead_minutes).await?;
+    // Шаг 1: новые наступившие дозы — первое напоминание только первому по эскалации.
+    let ready = mark_ready_to_remind(&state.pool, state.settings.reminder_lookahead_minutes).await?;
     for d in &ready {
-        send_family_message(bot, &state.pool, d, "Напоминание").await?;
+        let members = ordered_notify_members(&state.pool, d.household_id).await?;
+        if let Some(primary) = members.first() {
+            send_member_message(bot, primary, d, "Напоминание").await?;
+        }
     }
 
-    let missed = mark_overdue_as_missed(&state.pool, state.settings.missed_grace_minutes).await?;
-    for d in &missed {
-        send_family_message(bot, &state.pool, d, "Пропущенная доза").await?;
+    // Шаг 2: уже отправленные напоминания — продвигаем эскалацию по таймингу.
+    let reminded = get_reminded_doses(&state.pool).await?;
+    let now = Utc::now();
+    for d in &reminded {
+        let members = ordered_notify_members(&state.pool, d.household_id).await?;
+        let action = next_escalation_action(
+            d.dose.escalation_level,
+            d.dose.last_escalated_at,
+            members.len(),
+            now,
+            state.settings.escalation_first_delay_minutes,
+            state.settings.escalation_step_minutes,
+        );
+        match action {
+            EscalationAction::Wait => {}
+            EscalationAction::Notify {
+                member_index,
+                next_level,
+            } => {
+                let prefix = if next_level == 2 {
+                    "Напоминание (повтор)"
+                } else {
+                    "Эскалация: предыдущий не ответил"
+                };
+                send_member_message(bot, &members[member_index], d, prefix).await?;
+                advance_escalation(&state.pool, d.dose.id, next_level).await?;
+            }
+            EscalationAction::Missed => {
+                mark_missed(&state.pool, d.dose.id).await?;
+                if let Some(primary) = members.first() {
+                    let _ = send_member_message(bot, primary, d, "Пропущенная доза").await;
+                }
+            }
+        }
     }
     Ok(())
 }
 
-async fn send_family_message(
+/// Отправить адресное сообщение по одной дозе конкретному члену семьи.
+async fn send_member_message(
     bot: &Bot,
-    pool: &PgPool,
+    member: &FamilyMember,
     detail: &DoseDetail,
     prefix: &str,
 ) -> anyhow::Result<()> {
-    let members = sqlx::query_as::<_, FamilyMember>(
-        "SELECT * FROM family_members \
-         WHERE household_id = $1 AND notify = TRUE AND telegram_user_id IS NOT NULL",
-    )
-    .bind(detail.household_id)
-    .fetch_all(pool)
-    .await?;
-
+    let Some(tid) = member.telegram_user_id else {
+        return Ok(());
+    };
     let slice = std::slice::from_ref(detail);
     let text = render_due_list(slice).replace("Скоро нужно:", &format!("{prefix}:"));
-    let keyboard = due_keyboard(slice);
-
-    for member in members {
-        let Some(tid) = member.telegram_user_id else {
-            continue;
-        };
-        let mut req = bot.send_message(ChatId(tid), text.clone());
-        if let Some(kb) = &keyboard {
-            req = req.reply_markup(kb.clone());
-        }
-        req.await?;
+    let mut req = bot.send_message(ChatId(tid), text);
+    if let Some(kb) = due_keyboard(slice) {
+        req = req.reply_markup(kb);
     }
+    req.await?;
     Ok(())
 }

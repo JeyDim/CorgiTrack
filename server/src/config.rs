@@ -14,7 +14,10 @@ pub struct Settings {
     /// Кастомный Bot API server (по умолчанию прокси, как в Python).
     /// Пустая строка в env очищает значение (прямой доступ к api.telegram.org).
     pub telegram_api_server_url: Option<String>,
-    pub missed_grace_minutes: i64,
+    /// Пауза после первого напоминания до повторного вопроса тому же человеку (минуты).
+    pub escalation_first_delay_minutes: i64,
+    /// Пауза между последующими шагами эскалации — повтор/следующий по списку (минуты).
+    pub escalation_step_minutes: i64,
     pub reminder_lookahead_minutes: i64,
     pub scheduler_tick_seconds: u64,
 }
@@ -32,7 +35,8 @@ impl Settings {
             service_token: env_or("SERVICE_TOKEN", "change-me"),
             telegram_bot_token: env_opt("TELEGRAM_BOT_TOKEN"),
             telegram_api_server_url: telegram_api_server_url(),
-            missed_grace_minutes: env_parse("MISSED_GRACE_MINUTES", 120),
+            escalation_first_delay_minutes: env_parse("ESCALATION_FIRST_DELAY_MINUTES", 30),
+            escalation_step_minutes: env_parse("ESCALATION_STEP_MINUTES", 5),
             reminder_lookahead_minutes: env_parse("REMINDER_LOOKAHEAD_MINUTES", 30),
             scheduler_tick_seconds: env_parse("SCHEDULER_TICK_SECONDS", 60),
         }
