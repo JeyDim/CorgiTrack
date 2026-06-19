@@ -100,7 +100,7 @@ watch(lookahead, reload);
   <div class="view">
     <header class="view-head spread">
       <div>
-        <h1>🦴 Сегодня</h1>
+        <h1>🦴 Уведомления</h1>
         <p class="muted">
           <template v-if="hasHousehold">
             {{ pendingCount }}

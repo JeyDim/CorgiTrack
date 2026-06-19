@@ -14,7 +14,7 @@ export const router = createRouter({
       path: "/dashboard",
       name: "dashboard",
       component: Dashboard,
-      meta: { title: "Сегодня", icon: "🦴" },
+      meta: { title: "Уведомления", icon: "🦴" },
     },
     {
       path: "/treatments",
