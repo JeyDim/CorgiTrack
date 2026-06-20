@@ -4,13 +4,11 @@ use chrono::offset::LocalResult;
 use chrono::TimeZone;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use chrono_tz::Tz;
-use rand::RngCore;
 use uuid::Uuid;
 
 /// Аналог secrets.token_urlsafe(32) из Python: 32 случайных байта в base64url.
 pub fn generate_api_key() -> String {
-    let mut bytes = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut bytes);
+    let bytes: [u8; 32] = rand::random();
     URL_SAFE_NO_PAD.encode(bytes)
 }
 
