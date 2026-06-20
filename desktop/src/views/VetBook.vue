@@ -161,12 +161,6 @@ function rowDate(iso: string): string {
   return shortFmt.format(new Date(iso));
 }
 
-// Длинные названия клиник сжимаем, чтобы текст не вылезал за дугу штампа.
-function clinicArc(clinic: string | null): string {
-  const c = (clinic ?? "").trim();
-  return c.length > 26 ? `${c.slice(0, 25)}…` : c;
-}
-
 onMounted(reload);
 // Сменили семью в настройках — перечитываем и сбрасываем выбор собаки.
 watch(
@@ -240,24 +234,8 @@ watch(
 
               <!-- штамп клиники -->
               <div v-if="e.clinic" class="stamp" :title="e.clinic ?? ''">
-                <svg viewBox="0 0 100 100" class="stamp-svg" aria-hidden="true">
-                  <defs>
-                    <path
-                      :id="`arc-${e.id}`"
-                      d="M 14,50 A 36,36 0 0 1 86,50"
-                      fill="none"
-                    />
-                  </defs>
-                  <circle class="ring ring-out" cx="50" cy="50" r="46" />
-                  <circle class="ring ring-in" cx="50" cy="50" r="38" />
-                  <text class="stamp-top">
-                    <textPath :href="`#arc-${e.id}`" startOffset="50%">
-                      {{ clinicArc(e.clinic) }}
-                    </textPath>
-                  </text>
-                  <text class="stamp-emblem" x="50" y="52">✚</text>
-                  <text class="stamp-date" x="50" y="72">{{ stampDate(e.date) }}</text>
-                </svg>
+                <span class="stamp-name">{{ e.clinic }}</span>
+                <span class="stamp-date">{{ stampDate(e.date) }}</span>
               </div>
               <div v-else class="stamp stamp-blank" title="Клиника не указана">
                 <span>нет<br />печати</span>
@@ -504,61 +482,71 @@ watch(
 
 /* ---- штамп клиники (сигнатура раздела) ---- */
 .stamp {
-  width: 86px;
-  height: 86px;
+  position: relative;
+  width: 9.6rem;
   flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.22rem;
+  padding: 0.45rem 0.7rem 0.5rem;
+  border: 2.5px solid var(--vb-stamp);
+  border-radius: 9px;
+  color: var(--vb-stamp);
+  background: rgba(91, 75, 155, 0.05);
+  opacity: 0.9;
   transform: rotate(-8deg);
   transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.3, 1.4);
+}
+/* вторая рамка — как у настоящей резиновой печати */
+.stamp::before {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border: 1px solid var(--vb-stamp);
+  border-radius: 6px;
+  opacity: 0.5;
+  pointer-events: none;
 }
 .vax-entry:hover .stamp {
   transform: rotate(0deg) scale(1.03);
 }
-.stamp-svg {
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-}
-.stamp .ring {
-  fill: none;
-  stroke: var(--vb-stamp);
-  opacity: 0.72;
-}
-.ring-out {
-  stroke-width: 2.5;
-}
-.ring-in {
-  stroke-width: 1;
-  opacity: 0.5;
-}
-.stamp-top,
-.stamp-date,
-.stamp-emblem {
-  fill: var(--vb-stamp);
-  opacity: 0.82;
+.stamp-head {
   font-family: var(--font-display);
-  text-transform: uppercase;
-}
-.stamp-top {
-  font-size: 7.4px;
+  font-size: 0.56rem;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.85;
 }
-.stamp-emblem {
-  font-size: 15px;
-  text-anchor: middle;
+.stamp-name {
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.15;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  /* полное название клиники, перенос по словам */
+  overflow-wrap: anywhere;
 }
 .stamp-date {
-  font-size: 8.5px;
+  font-family: var(--font-display);
+  font-size: 0.7rem;
   font-weight: 600;
-  text-anchor: middle;
   letter-spacing: 0.04em;
+  width: 72%;
+  padding-top: 0.2rem;
+  border-top: 1px solid rgba(91, 75, 155, 0.35);
 }
 .stamp-blank {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
+  min-height: 3.6rem;
   border: 2px dashed var(--ink-faint);
+  background: none;
+  opacity: 1;
   color: var(--ink-faint);
   font-family: var(--font-display);
   text-transform: uppercase;
@@ -566,6 +554,9 @@ watch(
   line-height: 1.4;
   text-align: center;
   letter-spacing: 0.08em;
+}
+.stamp-blank::before {
+  display: none;
 }
 
 /* ===================== обработки (правая страница) ===================== */
