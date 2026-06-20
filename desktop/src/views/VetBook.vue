@@ -97,10 +97,31 @@ const classified = computed(() => {
   return { vaccine, worm, tick };
 });
 
-// Прививки группируем по году — как развороты-«годы» в паспорте.
+// ---- пагинация: листаем разворот, как страницы паспорта ----
+const PER_PAGE_VAX = 4; // прививок на левой странице
+const PER_PAGE_WORM = 4; // строк «от гельминтов» на правой
+const PER_PAGE_TICK = 4; // строк «от клещей» на правой
+const page = ref(0); // текущая страница разворота, 0-based
+
+// Сколько разворотов нужно — по самому «длинному» разделу.
+const totalPages = computed(() =>
+  Math.max(
+    1,
+    Math.ceil(classified.value.vaccine.length / PER_PAGE_VAX),
+    Math.ceil(classified.value.worm.length / PER_PAGE_WORM),
+    Math.ceil(classified.value.tick.length / PER_PAGE_TICK),
+  ),
+);
+
+function pageSlice<T>(arr: T[], per: number): T[] {
+  const start = page.value * per;
+  return arr.slice(start, start + per);
+}
+
+// Прививки текущей страницы группируем по году — как развороты-«годы» в паспорте.
 const vaccineGroups = computed(() => {
   const groups = new Map<number, Entry[]>();
-  for (const e of classified.value.vaccine) {
+  for (const e of pageSlice(classified.value.vaccine, PER_PAGE_VAX)) {
     const y = new Date(e.date).getFullYear();
     if (!groups.has(y)) groups.set(y, []);
     groups.get(y)!.push(e);
@@ -110,8 +131,20 @@ const vaccineGroups = computed(() => {
     .map(([year, items]) => ({ year, items }));
 });
 
-const worms = computed(() => classified.value.worm);
-const ticks = computed(() => classified.value.tick);
+const worms = computed(() => pageSlice(classified.value.worm, PER_PAGE_WORM));
+const ticks = computed(() => pageSlice(classified.value.tick, PER_PAGE_TICK));
+
+// Глобальные флаги — отличаем «совсем нет записей» от «нет на этой странице».
+const hasVaccines = computed(() => classified.value.vaccine.length > 0);
+const hasWorms = computed(() => classified.value.worm.length > 0);
+const hasTicks = computed(() => classified.value.tick.length > 0);
+
+function goPrev() {
+  if (page.value > 0) page.value--;
+}
+function goNext() {
+  if (page.value < totalPages.value - 1) page.value++;
+}
 
 // ---- форматирование ----
 const dayFmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit" });
@@ -152,6 +185,14 @@ watch(
     reload();
   },
 );
+// Сменили собаку — открываем разворот с первой страницы.
+watch(selectedDogId, () => {
+  page.value = 0;
+});
+// Записей стало меньше (фильтр/перезагрузка) — не выходим за последнюю страницу.
+watch(totalPages, (max) => {
+  if (page.value > max - 1) page.value = Math.max(0, max - 1);
+});
 </script>
 
 <template>
@@ -192,14 +233,14 @@ watch(
           <h2>Прививки</h2>
         </div>
 
-        <div v-if="!vaccineGroups.length" class="page-empty">
+        <div v-if="!hasVaccines" class="page-empty">
           <div class="stamp-empty">место<br />для<br />печати</div>
           <p class="muted">
             Здесь появятся прививки со штампом клиники — отметьте дозу принятой.
           </p>
         </div>
 
-        <div v-else class="vax-groups">
+        <div v-else :key="page" class="vax-groups flip-in">
           <div v-for="g in vaccineGroups" :key="g.year" class="vax-year">
             <div class="year-tab">{{ g.year }}</div>
 
@@ -229,32 +270,57 @@ watch(
 
       <!-- ПРАВАЯ СТРАНИЦА — обработки от паразитов -->
       <section class="page page-right">
-        <div class="page-head">
-          <span class="page-ico">🪱</span>
-          <h2>От гельминтов</h2>
-        </div>
-        <div class="ruled">
-          <p v-if="!worms.length" class="row-empty muted">Пока нет записей</p>
-          <div v-for="e in worms" :key="e.id" class="ruled-row">
-            <span class="r-date">{{ rowDate(e.date) }}</span>
-            <span class="r-name">{{ e.name }}</span>
-            <span v-if="e.dose_label" class="r-dose muted small">{{ e.dose_label }}</span>
+        <div :key="page" class="treat-stack flip-in">
+          <div class="page-head">
+            <span class="page-ico">🪱</span>
+            <h2>От гельминтов</h2>
           </div>
-        </div>
+          <div class="ruled">
+            <p v-if="!hasWorms" class="row-empty muted">Пока нет записей</p>
+            <div v-for="e in worms" :key="e.id" class="ruled-row">
+              <span class="r-date">{{ rowDate(e.date) }}</span>
+              <span class="r-name">{{ e.name }}</span>
+              <span v-if="e.dose_label" class="r-dose muted small">{{ e.dose_label }}</span>
+            </div>
+          </div>
 
-        <div class="page-head page-head-2">
-          <span class="page-ico">🕷</span>
-          <h2>От клещей</h2>
-        </div>
-        <div class="ruled">
-          <p v-if="!ticks.length" class="row-empty muted">Пока нет записей</p>
-          <div v-for="e in ticks" :key="e.id" class="ruled-row">
-            <span class="r-date">{{ rowDate(e.date) }}</span>
-            <span class="r-name">{{ e.name }}</span>
-            <span v-if="e.dose_label" class="r-dose muted small">{{ e.dose_label }}</span>
+          <div class="page-head page-head-2">
+            <span class="page-ico">🕷</span>
+            <h2>От клещей</h2>
+          </div>
+          <div class="ruled">
+            <p v-if="!hasTicks" class="row-empty muted">Пока нет записей</p>
+            <div v-for="e in ticks" :key="e.id" class="ruled-row">
+              <span class="r-date">{{ rowDate(e.date) }}</span>
+              <span class="r-name">{{ e.name }}</span>
+              <span v-if="e.dose_label" class="r-dose muted small">{{ e.dose_label }}</span>
+            </div>
           </div>
         </div>
       </section>
+
+      <!-- листание разворота: одна навигация на обе страницы -->
+      <footer v-if="totalPages > 1" class="book-nav">
+        <button
+          class="page-btn"
+          :disabled="page === 0"
+          aria-label="Предыдущая страница"
+          title="Предыдущая страница"
+          @click="goPrev"
+        >
+          ←
+        </button>
+        <span class="page-count">стр. {{ page + 1 }} из {{ totalPages }}</span>
+        <button
+          class="page-btn"
+          :disabled="page >= totalPages - 1"
+          aria-label="Следующая страница"
+          title="Следующая страница"
+          @click="goNext"
+        >
+          →
+        </button>
+      </footer>
     </div>
   </div>
 </template>
@@ -345,6 +411,73 @@ watch(
 }
 .page-right {
   box-shadow: inset 18px 0 24px -18px rgba(120, 80, 40, 0.35);
+}
+
+/* ---- листание разворота ---- */
+.book-nav {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.1rem;
+  padding: 0.85rem 1rem 1.05rem;
+  border-top: 1px solid rgba(120, 80, 40, 0.18);
+  background: linear-gradient(
+    to bottom,
+    rgba(120, 80, 40, 0.05),
+    transparent
+  );
+}
+.page-btn {
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid rgba(120, 80, 40, 0.3);
+  background: var(--vb-page);
+  color: var(--corgi-deep);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease,
+    opacity 0.15s ease;
+}
+.page-btn:hover:not(:disabled) {
+  background: var(--corgi-wash);
+  transform: translateY(-1px);
+}
+.page-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.page-count {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--corgi-deep);
+  letter-spacing: 0.02em;
+  min-width: 7rem;
+  text-align: center;
+}
+
+/* мягкое «перелистывание» содержимого страниц */
+.flip-in {
+  animation: flip-in 0.34s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+@keyframes flip-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .page-head {
@@ -599,11 +732,13 @@ watch(
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .book {
+  .book,
+  .flip-in {
     animation: none;
   }
   .stamp,
-  .vax-entry {
+  .vax-entry,
+  .page-btn {
     transition: none;
   }
 }
