@@ -50,7 +50,7 @@ jobs:
             type=raw,value=${{ needs.version.outputs.version }}
             type=raw,value=latest
 
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: ./server
           file: ./server/Dockerfile
