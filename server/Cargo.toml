@@ -37,7 +37,7 @@ teloxide = { version = "0.13", default-features = false, features = [
 ] }
 url = "2"
 
-icalendar = "0.16"
+icalendar = "0.17"
 csv = "1"
 
 uuid = { version = "1", features = ["v4"] }
