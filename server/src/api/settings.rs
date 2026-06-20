@@ -29,9 +29,17 @@ async fn update_settings(
     Json(body): Json<UpdateSettings>,
 ) -> AppResult<Json<AppSettings>> {
     // Минимальные адекватные значения, чтобы шедулер не «крутился» вхолостую.
-    check_min("escalation_first_delay_minutes", body.escalation_first_delay_minutes, 1)?;
+    check_min(
+        "escalation_first_delay_minutes",
+        body.escalation_first_delay_minutes,
+        1,
+    )?;
     check_min("escalation_step_minutes", body.escalation_step_minutes, 1)?;
-    check_min("reminder_lookahead_minutes", body.reminder_lookahead_minutes, 0)?;
+    check_min(
+        "reminder_lookahead_minutes",
+        body.reminder_lookahead_minutes,
+        0,
+    )?;
     check_min("scheduler_tick_seconds", body.scheduler_tick_seconds, 1)?;
 
     let patch = SettingsPatch {

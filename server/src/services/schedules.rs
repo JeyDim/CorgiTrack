@@ -206,8 +206,9 @@ pub async fn mark_taken_by_api_key(
 
 /// Все активные напоминания (статус reminded) с деталями — для шага эскалации.
 pub async fn get_reminded_doses(pool: &PgPool) -> Result<Vec<DoseDetail>, sqlx::Error> {
-    let sql =
-        format!("{DETAIL_SELECT} WHERE t.active = true AND d.status = 'reminded' ORDER BY d.due_at");
+    let sql = format!(
+        "{DETAIL_SELECT} WHERE t.active = true AND d.status = 'reminded' ORDER BY d.due_at"
+    );
     let rows = sqlx::query(&sql).fetch_all(pool).await?;
     rows.iter().map(row_to_detail).collect()
 }
@@ -259,7 +260,10 @@ pub enum EscalationAction {
     /// Интервал ещё не вышел — ничего не делаем.
     Wait,
     /// Уведомить участника с этим индексом в списке эскалации и поднять уровень.
-    Notify { member_index: usize, next_level: i32 },
+    Notify {
+        member_index: usize,
+        next_level: i32,
+    },
     /// Список исчерпан — отметить дозу пропущенной.
     Missed,
 }

@@ -122,6 +122,7 @@ fn sample_detail() -> DoseDetail {
         start_at: now,
         reminder_time: NaiveTime::from_hms_opt(9, 0, 0).unwrap(),
         instructions: None,
+        clinic: None,
         active: true,
         created_at: now,
     };
@@ -137,6 +138,7 @@ fn sample_detail() -> DoseDetail {
         taken_at: None,
         confirmed_by_member_id: None,
         note: None,
+        clinic: None,
         created_at: now,
     };
     DoseDetail {
