@@ -1,0 +1,68 @@
+name: 🐛 Баг-репорт
+description: Сообщить об ошибке в CorgiTrack
+title: "[Баг]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Спасибо за отчёт! Заполните поля ниже — это поможет быстрее воспроизвести и починить проблему.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Компонент
+      description: Где проявляется проблема?
+      options:
+        - Сервер (Rust API)
+        - Telegram-бот
+        - Десктоп-клиент (Tauri/Vue)
+        - iCal / календарь
+        - Сборка / CI
+        - Другое / не знаю
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: Что произошло?
+      description: Опишите проблему и ожидаемое поведение.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Шаги для воспроизведения
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Логи / вывод
+      description: При наличии приложите логи (`RUST_LOG=debug`), вывод консоли и т.п. Уберите токены и личные данные.
+      render: shell
+  - type: input
+    id: version
+    attributes:
+      label: Версия
+      description: Версия сервера/приложения (см. `/health` или окно «О программе»).
+  - type: textarea
+    id: env
+    attributes:
+      label: Окружение
+      placeholder: |
+        - ОС:
+        - Способ запуска: Docker / cargo / десктоп-бандл
+        - Rust / Node (если собирали сами):
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Проверки
+      options:
+        - label: Я поискал среди существующих issues и не нашёл дубликата.
+          required: true
+        - label: Я убрал из отчёта токены, пароли и личные данные.
+          required: true

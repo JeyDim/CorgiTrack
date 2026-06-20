@@ -1,0 +1,42 @@
+name: ✨ Предложение
+description: Предложить новую возможность или улучшение
+title: "[Идея]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Какую проблему это решает?
+      description: Опишите ситуацию или боль, из-за которой нужна эта возможность.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Предлагаемое решение
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Альтернативы
+      description: Какие ещё варианты вы рассматривали?
+  - type: dropdown
+    id: component
+    attributes:
+      label: Компонент
+      options:
+        - Сервер (Rust API)
+        - Telegram-бот
+        - Десктоп-клиент (Tauri/Vue)
+        - iCal / календарь
+        - Другое
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Проверки
+      options:
+        - label: Я поискал среди существующих issues и не нашёл похожего предложения.
+          required: true

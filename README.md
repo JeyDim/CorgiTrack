@@ -1,4 +1,10 @@
-# CorgiTrack
+# CorgiTrack 🐕
+
+> Учёт таблеток и прививок собаки: Rust-бэкенд (API + Telegram-бот + iCal) и десктоп-клиент на Tauri.
+
+[![CI](https://github.com/JeyDim/CorgiTrack/actions/workflows/ci.yml/badge.svg)](https://github.com/JeyDim/CorgiTrack/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/JeyDim/CorgiTrack?sort=semver)](https://github.com/JeyDim/CorgiTrack/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Бэкенд для учёта таблеток и прививок собаки (Rust). Лёгкий бинарь для Raspberry Pi:
 
@@ -15,6 +21,13 @@
 
 axum · sqlx (PostgreSQL) · teloxide · chrono/chrono-tz · icalendar — всё на rustls
 (без OpenSSL).
+
+## Репозиторий
+
+- `server/` — Rust-бэкенд: HTTP API (axum), Telegram-бот, iCal, шедулер.
+- `desktop/` — десктоп-клиент на Tauri 2 + Vue 3 (см. [`desktop/README.md`](desktop/README.md)).
+- `scripts/` — вспомогательные скрипты (например, `set-version.sh`).
+- `.github/workflows/` — CI (`ci.yml`) и сборка релизов (`release.yml`).
 
 ## Локальный запуск
 
@@ -168,3 +181,18 @@ cargo test
 
 MVP использует ссылку подписки iCal — работает в Apple/Google Calendar без OAuth.
 Telegram остаётся интерфейсом для действий «принято»/«пропущено».
+
+## Как внести вклад
+
+Issues и pull request'ы приветствуются! Перед началом загляните в:
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) — настройка окружения, стиль кода и процесс PR.
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — правила общения в проекте.
+- [SECURITY.md](SECURITY.md) — как сообщить об уязвимости.
+
+Коротко: форкните репозиторий, создайте ветку, убедитесь, что `cargo fmt --all --check`,
+`cargo clippy --all-targets -- -D warnings` и `cargo test` проходят, и откройте PR с описанием.
+
+## Лицензия
+
+[MIT](LICENSE) © Sergey Novik

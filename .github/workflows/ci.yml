@@ -1,0 +1,68 @@
+name: CI
+
+# Проверки на каждый push в master и на каждый pull request.
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+# Отменяем устаревшие прогоны для той же ветки/PR.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # --- Сервер: формат, линтер, сборка, тесты (тесты не требуют БД) ---
+  server:
+    name: Сервер (Rust)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: server
+
+      - name: Форматирование (rustfmt)
+        run: cargo fmt --all --check
+
+      - name: Линтер (clippy)
+        run: cargo clippy --all-targets --locked -- -D warnings
+
+      - name: Сборка
+        run: cargo build --locked
+
+      - name: Тесты
+        run: cargo test --locked
+
+  # --- Десктоп: типы (vue-tsc) и сборка фронтенда (без нативной части Tauri) ---
+  desktop:
+    name: Десктоп (фронтенд)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Установка зависимостей
+        run: npm ci
+
+      - name: Сборка фронтенда (vue-tsc + vite)
+        run: npm run build
