@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 
 import type { Dog, Treatment } from "../api/types";
-import { TREATMENT_KIND_LABEL } from "../api/types";
+import { PILL_CATEGORY_LABEL, TREATMENT_KIND_LABEL } from "../api/types";
 import { useSettingsStore } from "../stores/settings";
 import { useToastStore } from "../stores/toast";
 import { formatDate } from "../util/format";
@@ -170,6 +170,9 @@ onMounted(reload);
             <div class="t-main">
               <strong>{{ t.name }}</strong>
               <div class="t-meta muted small">
+                <span v-if="t.kind === 'pill' && t.category" class="cat-tag">
+                  {{ PILL_CATEGORY_LABEL[t.category] }}
+                </span>
                 <span v-if="t.dose_label">{{ t.dose_label }}</span>
                 <span>· каждые {{ t.cycle_days }} дн.</span>
                 <span>· с {{ formatDate(t.start_at) }}</span>
@@ -333,6 +336,13 @@ onMounted(reload);
 }
 .small {
   font-size: 0.82rem;
+}
+.cat-tag {
+  background: var(--corgi-wash);
+  color: var(--ink);
+  padding: 0.02rem 0.5rem;
+  border-radius: var(--r-pill);
+  font-weight: 600;
 }
 .t-actions {
   display: flex;

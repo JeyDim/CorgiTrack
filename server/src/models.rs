@@ -9,6 +9,16 @@ pub enum TreatmentKind {
     Vaccine,
 }
 
+/// Категория таблетки (для kind = Pill): от клещей / от гельминтов.
+/// Для прививок и старых записей категория отсутствует (NULL).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[sqlx(type_name = "pillcategory", rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
+pub enum PillCategory {
+    Tick,
+    Worm,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "dosestatus", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
@@ -81,6 +91,8 @@ pub struct Treatment {
     pub dog_id: i32,
     pub name: String,
     pub kind: TreatmentKind,
+    /// Категория таблетки (для kind = Pill): от клещей / от гельминтов. NULL у прививок.
+    pub category: Option<PillCategory>,
     pub dose_label: Option<String>,
     pub cycle_days: i32,
     pub start_at: DateTime<Utc>,

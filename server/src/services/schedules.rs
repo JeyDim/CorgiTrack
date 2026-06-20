@@ -78,7 +78,7 @@ pub(crate) const DETAIL_SELECT: &str = "SELECT \
     d.id AS dose_id, d.treatment_id AS dose_treatment_id, d.due_at, d.status, d.api_key, \
     d.reminded_at, d.escalation_level, d.last_escalated_at, \
     d.taken_at, d.confirmed_by_member_id, d.note, d.clinic AS dose_clinic, d.created_at AS dose_created_at, \
-    t.id AS t_id, t.dog_id AS t_dog_id, t.name AS t_name, t.kind AS t_kind, t.dose_label, \
+    t.id AS t_id, t.dog_id AS t_dog_id, t.name AS t_name, t.kind AS t_kind, t.category AS t_category, t.dose_label, \
     t.cycle_days, t.start_at, t.reminder_time, t.instructions, t.active, t.clinic AS t_clinic, t.created_at AS t_created_at, \
     g.name AS dog_name, g.household_id AS household_id \
     FROM doses d \
@@ -106,6 +106,7 @@ pub(crate) fn row_to_detail(row: &PgRow) -> Result<DoseDetail, sqlx::Error> {
         dog_id: row.try_get("t_dog_id")?,
         name: row.try_get("t_name")?,
         kind: row.try_get::<TreatmentKind, _>("t_kind")?,
+        category: row.try_get("t_category")?,
         dose_label: row.try_get("dose_label")?,
         cycle_days: row.try_get("cycle_days")?,
         start_at: row.try_get("start_at")?,

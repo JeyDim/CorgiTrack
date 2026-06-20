@@ -27,26 +27,6 @@ interface Entry {
   clinic: string | null;
 }
 
-// Ключевые слова, по которым таблетку относим к обработке «от клещей»
-// (иначе — «от гельминтов»). Названия можно тюнить под свою аптечку.
-const TICK_WORDS = [
-  "клещ",
-  "тик",
-  "блох",
-  "эктопаразит",
-  "бравекто",
-  "симпарик",
-  "фронтлайн",
-  "нексгард",
-  "адвокат",
-  "инспектор",
-];
-
-function isTickPill(name: string): boolean {
-  const n = name.toLowerCase();
-  return TICK_WORDS.some((w) => n.includes(w));
-}
-
 async function reload() {
   if (settings.householdId == null) return;
   loading.value = true;
@@ -104,8 +84,10 @@ const classified = computed(() => {
       clinic: d.clinic,
     };
 
+    // Прививки — отдельно; таблетки делим по явной категории.
+    // Категория не задана (старые записи) → «от гельминтов».
     if (t.kind === "vaccine") vaccine.push(entry);
-    else if (isTickPill(t.name)) tick.push(entry);
+    else if (t.category === "tick") tick.push(entry);
     else worm.push(entry);
   }
 

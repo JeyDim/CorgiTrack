@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { reactive, ref } from "vue";
-import type { CreateTreatment, Dog, Treatment, TreatmentKind } from "../api/types";
-import { TREATMENT_KIND_LABEL } from "../api/types";
+import type {
+  CreateTreatment,
+  Dog,
+  PillCategory,
+  Treatment,
+  TreatmentKind,
+} from "../api/types";
+import { PILL_CATEGORY_LABEL, TREATMENT_KIND_LABEL } from "../api/types";
 import { useSettingsStore } from "../stores/settings";
 import { useToastStore } from "../stores/toast";
 import { toDatetimeLocal } from "../util/format";
@@ -24,6 +30,8 @@ const form = reactive({
   dog_id: props.treatment?.dog_id ?? props.dogs[0]?.id ?? null,
   name: props.treatment?.name ?? "",
   kind: (props.treatment?.kind ?? "pill") as TreatmentKind,
+  // Категория осмысленна только для таблеток; дефолт — «от гельминтов».
+  category: (props.treatment?.category ?? "worm") as PillCategory,
   dose_label: props.treatment?.dose_label ?? "",
   cycle_days: props.treatment?.cycle_days ?? 90,
   start_at: props.treatment
@@ -50,6 +58,8 @@ async function submit() {
       dog_id: form.dog_id,
       name: form.name.trim(),
       kind: form.kind,
+      // Категорию шлём только для таблеток; у прививок — null.
+      category: form.kind === "pill" ? form.category : null,
       dose_label: form.dose_label.trim() || null,
       cycle_days: form.cycle_days,
       // datetime-local → RFC3339 (UTC).
@@ -110,6 +120,16 @@ async function submit() {
           <label>Доза</label>
           <input v-model="form.dose_label" class="input" placeholder="1 таблетка" />
         </div>
+      </div>
+
+      <div v-if="form.kind === 'pill'" class="field">
+        <label>Тип таблетки</label>
+        <select v-model="form.category" class="select">
+          <option v-for="(label, value) in PILL_CATEGORY_LABEL" :key="value" :value="value">
+            {{ label }}
+          </option>
+        </select>
+        <span class="hint muted">Раздел в «Веткниге»: от клещей или от гельминтов.</span>
       </div>
 
       <div v-if="form.kind === 'vaccine'" class="field">

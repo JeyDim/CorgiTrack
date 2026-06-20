@@ -3,6 +3,9 @@
 
 export type TreatmentKind = "pill" | "vaccine";
 
+/** Категория таблетки (для kind = "pill"): от клещей / от гельминтов. */
+export type PillCategory = "tick" | "worm";
+
 export type DoseStatus =
   | "planned"
   | "reminded"
@@ -65,6 +68,8 @@ export interface Treatment {
   dog_id: number;
   name: string;
   kind: TreatmentKind;
+  /** Категория таблетки (для kind = "pill"). NULL у прививок и старых записей. */
+  category: PillCategory | null;
   dose_label: string | null;
   cycle_days: number;
   start_at: string;
@@ -113,6 +118,7 @@ export interface CreateTreatment {
   dog_id: number;
   name: string;
   kind: TreatmentKind;
+  category?: PillCategory | null;
   dose_label?: string | null;
   cycle_days: number;
   start_at: string;
@@ -150,4 +156,9 @@ export const DOSE_STATUS_LABEL: Record<DoseStatus, string> = {
 export const TREATMENT_KIND_LABEL: Record<TreatmentKind, string> = {
   pill: "Таблетка",
   vaccine: "Прививка",
+};
+
+export const PILL_CATEGORY_LABEL: Record<PillCategory, string> = {
+  tick: "От клещей",
+  worm: "От гельминтов",
 };

@@ -12,6 +12,11 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'dosestatus') THEN
         CREATE TYPE dosestatus AS ENUM ('planned', 'reminded', 'taken', 'missed', 'skipped');
     END IF;
+    -- Категория таблетки: «от клещей» / «от гельминтов». Заполняется только
+    -- для kind = 'pill'; у прививок остаётся NULL.
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'pillcategory') THEN
+        CREATE TYPE pillcategory AS ENUM ('tick', 'worm');
+    END IF;
 END$$;
 
 CREATE TABLE IF NOT EXISTS households (
@@ -56,6 +61,9 @@ CREATE TABLE IF NOT EXISTS treatments (
     -- Текущая ветклиника назначения (для прививок). Снимок этой клиники
     -- копируется в дозу при отметке «принято» — см. doses.clinic.
     clinic        VARCHAR(160),
+    -- Категория таблетки: 'tick' (от клещей) / 'worm' (от гельминтов).
+    -- NULL для прививок и для старых записей (в UI трактуется как «от гельминтов»).
+    category      pillcategory,
     created_at    TIMESTAMPTZ   NOT NULL DEFAULT now()
 );
 
@@ -87,6 +95,8 @@ ALTER TABLE doses ADD COLUMN IF NOT EXISTS last_escalated_at TIMESTAMPTZ;
 -- Ветклиника: на лечении (текущая) и на дозе (снимок при приёме) для старых БД.
 ALTER TABLE treatments ADD COLUMN IF NOT EXISTS clinic VARCHAR(160);
 ALTER TABLE doses      ADD COLUMN IF NOT EXISTS clinic VARCHAR(160);
+-- Категория таблетки (NULL = не задана; в UI трактуется как «от гельминтов»).
+ALTER TABLE treatments ADD COLUMN IF NOT EXISTS category pillcategory;
 
 -- В старых БД (из Python-версии) у created_at не было DEFAULT — приложение
 -- проставляло время само. Rust-API вставляет строки без created_at, поэтому

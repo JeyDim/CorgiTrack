@@ -117,6 +117,7 @@ fn sample_detail() -> DoseDetail {
         dog_id: 1,
         name: "Test pill".to_string(),
         kind: TreatmentKind::Pill,
+        category: None,
         dose_label: None,
         cycle_days: 3,
         start_at: now,

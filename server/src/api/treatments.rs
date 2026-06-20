@@ -6,7 +6,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::error::{AppError, AppResult};
-use crate::models::{Treatment, TreatmentKind};
+use crate::models::{PillCategory, Treatment, TreatmentKind};
 use crate::state::AppState;
 
 pub fn router() -> Router<AppState> {
@@ -25,6 +25,8 @@ pub struct CreateTreatment {
     pub dog_id: i32,
     pub name: String,
     pub kind: TreatmentKind,
+    /// Категория таблетки (для kind = Pill): tick / worm.
+    pub category: Option<PillCategory>,
     pub dose_label: Option<String>,
     pub cycle_days: i32,
     pub start_at: DateTime<Utc>,
@@ -40,6 +42,7 @@ pub struct CreateTreatment {
 pub struct UpdateTreatment {
     pub name: Option<String>,
     pub kind: Option<TreatmentKind>,
+    pub category: Option<PillCategory>,
     pub dose_label: Option<String>,
     pub cycle_days: Option<i32>,
     pub start_at: Option<DateTime<Utc>>,
@@ -75,8 +78,8 @@ async fn create(
 ) -> AppResult<Json<Treatment>> {
     let row = sqlx::query_as::<_, Treatment>(
         "INSERT INTO treatments \
-            (dog_id, name, kind, dose_label, cycle_days, start_at, reminder_time, instructions, active, clinic) \
-         VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, '09:00'::time), $8, COALESCE($9, TRUE), $10) \
+            (dog_id, name, kind, dose_label, cycle_days, start_at, reminder_time, instructions, active, clinic, category) \
+         VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, '09:00'::time), $8, COALESCE($9, TRUE), $10, $11) \
          RETURNING *",
     )
     .bind(body.dog_id)
@@ -89,6 +92,7 @@ async fn create(
     .bind(body.instructions)
     .bind(body.active)
     .bind(body.clinic)
+    .bind(body.category)
     .fetch_one(&state.pool)
     .await?;
     Ok(Json(row))
@@ -118,7 +122,8 @@ async fn update(
             reminder_time = COALESCE($7, reminder_time), \
             instructions = COALESCE($8, instructions), \
             active = COALESCE($9, active), \
-            clinic = COALESCE($10, clinic) \
+            clinic = COALESCE($10, clinic), \
+            category = COALESCE($11, category) \
          WHERE id = $1 RETURNING *",
     )
     .bind(id)
@@ -131,6 +136,7 @@ async fn update(
     .bind(body.instructions)
     .bind(body.active)
     .bind(body.clinic)
+    .bind(body.category)
     .fetch_optional(&state.pool)
     .await?
     .map(Json)
