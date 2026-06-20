@@ -42,7 +42,7 @@ jobs:
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
       - id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           # Полный путь образа без тега, напр. registry.example.com/me/corgitrack
           images: ${{ secrets.IMAGE_NAME }}
