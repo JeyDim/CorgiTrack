@@ -60,8 +60,9 @@ function entryDate(d: DoseView): string {
   return d.taken_at ?? d.due_at;
 }
 
-function byDateDesc(a: Entry, b: Entry): number {
-  return new Date(b.date).getTime() - new Date(a.date).getTime();
+// Прививки в паспорте идут от старых к новым (как страницы ветпаспорта).
+function byDateAsc(a: Entry, b: Entry): number {
+  return new Date(a.date).getTime() - new Date(b.date).getTime();
 }
 
 // Разносим пройденные дозы по трём разделам, учитывая выбранную собаку.
@@ -91,9 +92,9 @@ const classified = computed(() => {
     else worm.push(entry);
   }
 
-  vaccine.sort(byDateDesc);
-  worm.sort(byDateDesc);
-  tick.sort(byDateDesc);
+  vaccine.sort(byDateAsc);
+  worm.sort(byDateAsc);
+  tick.sort(byDateAsc);
   return { vaccine, worm, tick };
 });
 
@@ -127,7 +128,7 @@ const vaccineGroups = computed(() => {
     groups.get(y)!.push(e);
   }
   return [...groups.entries()]
-    .sort((a, b) => b[0] - a[0])
+    .sort((a, b) => a[0] - b[0])
     .map(([year, items]) => ({ year, items }));
 });
 
@@ -549,10 +550,13 @@ watch(totalPages, (max) => {
 
 .vax-entry {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.9rem;
-  padding: 0.7rem 0.2rem 0.9rem;
+  gap: 1.2rem;
+  /* минимальная высота строки: штамп повёрнут и визуально выше своей строки —
+     запас не даёт ему «лечь» на текст соседней прививки */
+  min-height: 5rem;
+  padding: 0.8rem 0.2rem 1rem;
   border-bottom: 1px dashed var(--vb-rule);
   transition:
     transform 0.18s ease,
@@ -586,10 +590,13 @@ watch(totalPages, (max) => {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+  /* длинное название прививки переносим, а не пускаем «под печать» */
+  overflow-wrap: anywhere;
 }
 .vax-main strong {
   font-size: 1rem;
   color: var(--ink);
+  overflow-wrap: anywhere;
 }
 .small {
   font-size: 0.82rem;
@@ -599,13 +606,18 @@ watch(totalPages, (max) => {
 .stamp {
   position: relative;
   width: 9.6rem;
+  min-height: 3.6rem;
   flex: none;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   text-align: center;
   gap: 0.22rem;
   padding: 0.45rem 0.7rem 0.5rem;
+  /* горизонтальный отступ компенсирует вынос от поворота — печать
+     не заходит на текст слева и на край страницы справа */
+  margin: 0.25rem 0.25rem;
   border: 2.5px solid var(--vb-stamp);
   border-radius: 9px;
   color: var(--vb-stamp);

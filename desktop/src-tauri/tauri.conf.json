@@ -14,10 +14,10 @@
       {
         "label": "main",
         "title": "CorgiTrack 🐕",
-        "width": 1040,
+        "width": 1100,
         "height": 800,
-        "resizable": false,
-        "maximizable": false
+        "resizable": true,
+        "maximizable": true
       }
     ],
     "security": {
