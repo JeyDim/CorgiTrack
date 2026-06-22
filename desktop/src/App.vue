@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, type Component } from "vue";
 import { getVersion } from "@tauri-apps/api/app";
 import { useRouter } from "vue-router";
 import { useSettingsStore } from "./stores/settings";
@@ -31,7 +31,7 @@ const navItems = computed(() =>
     .map((r) => ({
       name: r.name as string,
       title: (r.meta?.title as string) ?? (r.name as string),
-      icon: (r.meta?.icon as string) ?? "🐾",
+      icon: r.meta?.icon as Component | undefined,
     })),
 );
 
@@ -64,7 +64,7 @@ const host = computed(() => {
           class="nav-link"
           active-class="active"
         >
-          <span class="nav-ico">{{ item.icon }}</span>
+          <span class="nav-ico"><component :is="item.icon" :size="19" /></span>
           <span>{{ item.title }}</span>
         </RouterLink>
       </nav>
@@ -164,9 +164,10 @@ const host = computed(() => {
   box-shadow: 0 6px 14px rgba(201, 116, 43, 0.32);
 }
 .nav-ico {
-  font-size: 1.15rem;
   width: 1.4rem;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .foot {

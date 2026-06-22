@@ -1,4 +1,5 @@
 import { createRouter, createWebHashHistory } from "vue-router";
+import { Bone, BookOpen, Pill, Settings as SettingsIcon, Users } from "@lucide/vue";
 import { useSettingsStore } from "../stores/settings";
 
 // Хеш-история — безопаснее для Tauri (нет сервера, который раздавал бы маршруты).
@@ -16,31 +17,31 @@ export const router = createRouter({
       path: "/dashboard",
       name: "dashboard",
       component: Dashboard,
-      meta: { title: "Уведомления", icon: "🦴" },
+      meta: { title: "Уведомления", icon: Bone },
     },
     {
       path: "/treatments",
       name: "treatments",
       component: Treatments,
-      meta: { title: "Лечения", icon: "💊" },
+      meta: { title: "Лечения", icon: Pill },
     },
     {
       path: "/vetbook",
       name: "vetbook",
       component: VetBook,
-      meta: { title: "Веткнига", icon: "📖" },
+      meta: { title: "Веткнига", icon: BookOpen },
     },
     {
       path: "/family",
       name: "family",
       component: Family,
-      meta: { title: "Семья", icon: "👪" },
+      meta: { title: "Семья", icon: Users },
     },
     {
       path: "/settings",
       name: "settings",
       component: Settings,
-      meta: { title: "Настройки", icon: "⚙️" },
+      meta: { title: "Настройки", icon: SettingsIcon },
     },
   ],
 });

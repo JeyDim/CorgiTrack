@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, type Component } from "vue";
+import { Ban, Bell, CircleCheck, CircleX, Clock } from "@lucide/vue";
 import type { DoseStatus } from "../api/types";
 import { DOSE_STATUS_LABEL } from "../api/types";
 
@@ -19,22 +20,25 @@ const tone = computed(() => {
   }
 });
 
-const icon = computed(() => {
+const icon = computed<Component>(() => {
   switch (props.status) {
     case "taken":
-      return "✅";
+      return CircleCheck;
     case "missed":
-      return "⛔";
+      return CircleX;
     case "skipped":
-      return "🚫";
+      return Ban;
     case "reminded":
-      return "🔔";
+      return Bell;
     default:
-      return "🕒";
+      return Clock;
   }
 });
 </script>
 
 <template>
-  <span class="badge" :class="tone">{{ icon }} {{ DOSE_STATUS_LABEL[status] }}</span>
+  <span class="badge" :class="tone">
+    <component :is="icon" :size="14" />
+    {{ DOSE_STATUS_LABEL[status] }}
+  </span>
 </template>

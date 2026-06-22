@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
+import { Bone, Dog, PartyPopper, PawPrint, RefreshCw } from "@lucide/vue";
 
 import type { DoseStatus, DoseView, FamilyMember } from "../api/types";
 import { useSettingsStore } from "../stores/settings";
@@ -81,7 +82,7 @@ async function mark(dose: DoseView, status: DoseStatus) {
     });
     dose.status = updated.status;
     dose.taken_at = updated.taken_at;
-    toast.success(status === "taken" ? "Принято 🐾" : "Отмечено пропущенным");
+    toast.success(status === "taken" ? "Принято" : "Отмечено пропущенным");
   } catch (e) {
     toast.error(`Ошибка: ${(e as Error).message}`);
   } finally {
@@ -100,7 +101,7 @@ watch(lookahead, reload);
   <div class="view">
     <header class="view-head spread">
       <div>
-        <h1>🦴 Уведомления</h1>
+        <h1><Bone :size="24" /> Уведомления</h1>
         <p class="muted">
           <template v-if="hasHousehold">
             {{ pendingCount }}
@@ -135,15 +136,20 @@ watch(lookahead, reload);
           </button>
         </div>
 
-        <button class="btn btn-ghost btn-sm" :disabled="loading" @click="reload">
-          ⟳
+        <button
+          class="btn btn-ghost btn-sm"
+          :disabled="loading"
+          title="Обновить"
+          @click="reload"
+        >
+          <RefreshCw :size="16" />
         </button>
       </div>
     </header>
 
     <!-- нет семьи -->
     <div v-if="!hasHousehold" class="empty card">
-      <div class="empty-emoji">🐕‍🦺</div>
+      <div class="empty-emoji"><Dog :size="52" /></div>
       <h3>Семья не выбрана</h3>
       <p class="muted">Откройте настройки и выберите семью, чтобы видеть дозы.</p>
       <button class="btn btn-primary" @click="router.push({ name: 'settings' })">
@@ -153,13 +159,17 @@ watch(lookahead, reload);
 
     <!-- загрузка -->
     <div v-else-if="loading" class="loading">
-      <span class="paw-loader"><span>🐾</span><span>🐾</span><span>🐾</span></span>
+      <span class="paw-loader">
+        <span><PawPrint :size="22" /></span>
+        <span><PawPrint :size="22" /></span>
+        <span><PawPrint :size="22" /></span>
+      </span>
       <p class="muted">Нюхаем расписание…</p>
     </div>
 
     <!-- пусто -->
     <div v-else-if="!doses.length" class="empty card">
-      <div class="empty-emoji">🎉</div>
+      <div class="empty-emoji"><PartyPopper :size="52" /></div>
       <h3>Всё под контролем</h3>
       <p class="muted">На выбранный период ближайших доз нет.</p>
     </div>
@@ -168,7 +178,7 @@ watch(lookahead, reload);
     <div v-else class="days">
       <section v-for="g in groups" :key="g.key" class="day">
         <div class="day-head">
-          <span class="paw">🐾</span>
+          <span class="paw"><PawPrint :size="16" /></span>
           <h2>{{ g.label }}</h2>
           <span class="count muted">{{ g.items.length }}</span>
         </div>
@@ -232,6 +242,9 @@ watch(lookahead, reload);
 }
 .view-head h1 {
   font-size: 1.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
 }
 .view-head p {
   margin: 0.3rem 0 0;
@@ -289,7 +302,8 @@ watch(lookahead, reload);
   gap: 0.6rem;
 }
 .empty-emoji {
-  font-size: 3rem;
+  color: var(--corgi);
+  line-height: 0;
 }
 
 .days {

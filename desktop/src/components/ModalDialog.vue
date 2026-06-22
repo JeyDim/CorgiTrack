@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from "vue";
+import { onMounted, onUnmounted, type Component } from "vue";
+import { X } from "@lucide/vue";
 
-defineProps<{ title?: string }>();
+defineProps<{ title?: string; icon?: Component }>();
 const emit = defineEmits<{ (e: "close"): void }>();
 
 function onKey(e: KeyboardEvent) {
@@ -16,8 +17,13 @@ onUnmounted(() => window.removeEventListener("keydown", onKey));
     <div class="modal-backdrop" @click.self="emit('close')">
       <div class="modal card">
         <div class="modal-head">
-          <h3>{{ title }}</h3>
-          <button class="btn btn-ghost btn-sm" @click="emit('close')">✕</button>
+          <h3>
+            <component :is="icon" v-if="icon" :size="19" />
+            {{ title }}
+          </h3>
+          <button class="btn btn-ghost btn-sm" @click="emit('close')">
+            <X :size="16" />
+          </button>
         </div>
         <div class="modal-body">
           <slot />
@@ -56,6 +62,11 @@ onUnmounted(() => window.removeEventListener("keydown", onKey));
   align-items: center;
   justify-content: space-between;
   padding: 1.1rem 1.3rem 0.6rem;
+}
+.modal-head h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 .modal-body {
   padding: 0.4rem 1.3rem 1rem;

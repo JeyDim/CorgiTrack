@@ -4,6 +4,20 @@ import { getVersion } from "@tauri-apps/api/app";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import {
+  Clipboard,
+  Download,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  House,
+  Info,
+  Plug,
+  RefreshCw,
+  Settings as SettingsIcon,
+  Timer,
+  Wrench,
+} from "@lucide/vue";
 
 import { CorgiApi } from "../api/client";
 import type { AppSettings, Household } from "../api/types";
@@ -103,7 +117,7 @@ async function checkConnection() {
       await settings.setHousehold(list[0].id);
     }
     await loadAppSettings();
-    toast.success("Подключение работает 🐾");
+    toast.success("Подключение работает");
   } catch (e) {
     toast.error(`Не удалось подключиться: ${(e as Error).message}`);
   } finally {
@@ -154,7 +168,7 @@ async function checkUpdates() {
       // Баннер обновления покажется сам — он реагирует на updater.available.
       toast.success(`Доступна версия ${updater.version}`);
     } else {
-      toast.success("У вас последняя версия 🎉");
+      toast.success("У вас последняя версия");
     }
   } catch (e) {
     // Плагин updater отклоняется строкой, а не Error — берём message только
@@ -192,12 +206,12 @@ async function downloadCsv() {
 <template>
   <div class="view">
     <header class="view-head">
-      <h1>⚙️ Настройки</h1>
+      <h1><SettingsIcon :size="24" /> Настройки</h1>
       <p class="muted">Подключение к серверу CorgiTrack и инструменты семьи.</p>
     </header>
 
     <section class="card pad">
-      <h3>🔌 Подключение</h3>
+      <h3><Plug :size="18" /> Подключение</h3>
       <div class="grid">
         <div class="field">
           <label>Адрес сервера</label>
@@ -223,9 +237,10 @@ async function downloadCsv() {
             <button
               class="btn btn-ghost btn-sm"
               type="button"
+              :title="showToken ? 'Скрыть' : 'Показать'"
               @click="showToken = !showToken"
             >
-              {{ showToken ? "🙈" : "👁" }}
+              <component :is="showToken ? EyeOff : Eye" :size="16" />
             </button>
           </div>
         </div>
@@ -238,7 +253,7 @@ async function downloadCsv() {
     </section>
 
     <section v-if="households.length" class="card pad">
-      <h3>🏠 Семья</h3>
+      <h3><House :size="18" /> Семья</h3>
       <p class="muted small">
         Выбранная семья используется на дашборде и в отчётах.
       </p>
@@ -260,7 +275,7 @@ async function downloadCsv() {
     </section>
 
     <section v-if="appSettings" class="card pad">
-      <h3>⏱️ Эскалация и напоминания</h3>
+      <h3><Timer :size="18" /> Эскалация и напоминания</h3>
       <p class="muted small">
         Глобальные тайминги бота. Хранятся на сервере и применяются без
         перезапуска.
@@ -321,7 +336,7 @@ async function downloadCsv() {
     </section>
 
     <section v-if="settings.householdId != null" class="card pad">
-      <h3>🗓️ Инструменты</h3>
+      <h3><Wrench :size="18" /> Инструменты</h3>
       <div class="tools">
         <div class="tool">
           <div class="stack">
@@ -338,8 +353,12 @@ async function downloadCsv() {
         <div v-if="calendarUrl" class="cal-url">
           <code>{{ calendarUrl }}</code>
           <div class="row">
-            <button class="btn btn-sm" @click="copyCalendar">📋 Копировать</button>
-            <button class="btn btn-sm" @click="openCalendar">↗ Открыть</button>
+            <button class="btn btn-sm" @click="copyCalendar">
+              <Clipboard :size="15" /> Копировать
+            </button>
+            <button class="btn btn-sm" @click="openCalendar">
+              <ExternalLink :size="15" /> Открыть
+            </button>
           </div>
         </div>
 
@@ -349,21 +368,23 @@ async function downloadCsv() {
             <span class="muted small">Даты, когда дозы были приняты.</span>
           </div>
           <button class="btn btn-sm" :disabled="downloading" @click="downloadCsv">
-            {{ downloading ? "Сохраняю…" : "💾 Скачать CSV" }}
+            <Download :size="15" />
+            {{ downloading ? "Сохраняю…" : "Скачать CSV" }}
           </button>
         </div>
       </div>
     </section>
 
     <section class="card pad">
-      <h3>ℹ️ О приложении</h3>
+      <h3><Info :size="18" /> О приложении</h3>
       <div class="tool">
         <div class="stack">
           <strong>CorgiTrack</strong>
           <span class="muted small">Версия {{ appVersion }}</span>
         </div>
         <button class="btn btn-sm" :disabled="checkingUpdate" @click="checkUpdates">
-          {{ checkingUpdate ? "Проверяю…" : "🔄 Проверить обновления" }}
+          <RefreshCw :size="15" />
+          {{ checkingUpdate ? "Проверяю…" : "Проверить обновления" }}
         </button>
       </div>
     </section>
@@ -379,6 +400,9 @@ async function downloadCsv() {
 }
 .view-head h1 {
   font-size: 1.7rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
 }
 .view-head p {
   margin: 0.3rem 0 0;
@@ -391,6 +415,13 @@ async function downloadCsv() {
 }
 .card.pad h3 {
   font-size: 1.05rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--ink);
+}
+.card.pad h3 :deep(svg.lucide) {
+  color: var(--corgi-deep);
 }
 .small {
   font-size: 0.82rem;

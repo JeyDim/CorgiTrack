@@ -1,6 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
+import {
+  ArrowLeft,
+  ArrowRight,
+  BookOpen,
+  Bug,
+  Dog as DogIcon,
+  PawPrint,
+  Syringe,
+  Worm,
+} from "@lucide/vue";
 
 import type { Dog, DoseView } from "../api/types";
 import { useSettingsStore } from "../stores/settings";
@@ -187,7 +197,7 @@ watch(totalPages, (max) => {
   <div class="view">
     <header class="view-head spread">
       <div>
-        <h1>📖 Веткнига</h1>
+        <h1><BookOpen :size="24" /> Веткнига</h1>
         <p class="muted">История прививок и обработок — как в ветпаспорте.</p>
       </div>
       <select
@@ -201,7 +211,7 @@ watch(totalPages, (max) => {
     </header>
 
     <div v-if="!hasHousehold" class="empty card">
-      <div class="empty-emoji">🐕‍🦺</div>
+      <div class="empty-emoji"><DogIcon :size="52" /></div>
       <h3>Семья не выбрана</h3>
       <p class="muted">Выберите семью в настройках, чтобы открыть Веткнигу.</p>
       <button class="btn btn-primary" @click="router.push({ name: 'settings' })">
@@ -210,14 +220,18 @@ watch(totalPages, (max) => {
     </div>
 
     <div v-else-if="loading" class="loading">
-      <span class="paw-loader"><span>🐾</span><span>🐾</span><span>🐾</span></span>
+      <span class="paw-loader">
+        <span><PawPrint :size="22" /></span>
+        <span><PawPrint :size="22" /></span>
+        <span><PawPrint :size="22" /></span>
+      </span>
     </div>
 
     <div v-else class="book">
       <!-- ЛЕВАЯ СТРАНИЦА — прививки со штампами клиник -->
       <section class="page page-left">
         <div class="page-head">
-          <span class="page-ico">💉</span>
+          <span class="page-ico"><Syringe :size="22" /></span>
           <h2>Прививки</h2>
         </div>
 
@@ -260,7 +274,7 @@ watch(totalPages, (max) => {
       <section class="page page-right">
         <div :key="page" class="treat-stack flip-in">
           <div class="page-head">
-            <span class="page-ico">🪱</span>
+            <span class="page-ico"><Worm :size="22" /></span>
             <h2>От гельминтов</h2>
           </div>
           <div class="ruled">
@@ -273,7 +287,7 @@ watch(totalPages, (max) => {
           </div>
 
           <div class="page-head page-head-2">
-            <span class="page-ico">🕷</span>
+            <span class="page-ico"><Bug :size="22" /></span>
             <h2>От клещей</h2>
           </div>
           <div class="ruled">
@@ -296,7 +310,7 @@ watch(totalPages, (max) => {
           title="Предыдущая страница"
           @click="goPrev"
         >
-          ←
+          <ArrowLeft :size="18" />
         </button>
         <span class="page-count">стр. {{ page + 1 }} из {{ totalPages }}</span>
         <button
@@ -306,7 +320,7 @@ watch(totalPages, (max) => {
           title="Следующая страница"
           @click="goNext"
         >
-          →
+          <ArrowRight :size="18" />
         </button>
       </footer>
     </div>
@@ -326,6 +340,9 @@ watch(totalPages, (max) => {
 }
 .view-head h1 {
   font-size: 1.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
 }
 .view-head p {
   margin: 0.3rem 0 0;
@@ -349,7 +366,8 @@ watch(totalPages, (max) => {
   gap: 0.6rem;
 }
 .empty-emoji {
-  font-size: 3rem;
+  color: var(--corgi);
+  line-height: 0;
 }
 
 /* ===================== книга ===================== */
@@ -480,7 +498,9 @@ watch(totalPages, (max) => {
   margin-top: 1.8rem;
 }
 .page-ico {
-  font-size: 1.3rem;
+  display: inline-flex;
+  align-items: center;
+  color: var(--corgi-deep);
 }
 .page-head h2 {
   font-size: 1.25rem;

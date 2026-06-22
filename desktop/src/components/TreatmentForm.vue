@@ -8,6 +8,7 @@ import type {
   TreatmentKind,
 } from "../api/types";
 import { PILL_CATEGORY_LABEL, TREATMENT_KIND_LABEL } from "../api/types";
+import { Pencil, Plus } from "@lucide/vue";
 import { useSettingsStore } from "../stores/settings";
 import { useToastStore } from "../stores/toast";
 import { toDatetimeLocal } from "../util/format";
@@ -78,7 +79,7 @@ async function submit() {
       toast.success("Назначение обновлено");
     } else {
       await api.createTreatment(payload);
-      toast.success("Назначение добавлено 🐾");
+      toast.success("Назначение добавлено");
     }
     emit("saved");
   } catch (e) {
@@ -91,7 +92,8 @@ async function submit() {
 
 <template>
   <ModalDialog
-    :title="isEdit ? '✏️ Изменить назначение' : '➕ Новое назначение'"
+    :title="isEdit ? 'Изменить назначение' : 'Новое назначение'"
+    :icon="isEdit ? Pencil : Plus"
     @close="emit('close')"
   >
     <div class="form">

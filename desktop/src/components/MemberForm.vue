@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { reactive, ref } from "vue";
 import type { CreateMember, FamilyMember } from "../api/types";
+import { Pencil, Plus } from "@lucide/vue";
 import { useSettingsStore } from "../stores/settings";
 import { useToastStore } from "../stores/toast";
 import ModalDialog from "./ModalDialog.vue";
@@ -62,7 +63,7 @@ async function submit() {
         notify: form.notify,
       };
       await api.createMember(payload);
-      toast.success("Участник добавлен 🐾");
+      toast.success("Участник добавлен");
     }
     emit("saved");
   } catch (e) {
@@ -75,7 +76,8 @@ async function submit() {
 
 <template>
   <ModalDialog
-    :title="isEdit ? '✏️ Изменить участника' : '➕ Новый участник'"
+    :title="isEdit ? 'Изменить участника' : 'Новый участник'"
+    :icon="isEdit ? Pencil : Plus"
     @close="emit('close')"
   >
     <div class="form">

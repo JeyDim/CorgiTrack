@@ -1,12 +1,14 @@
 <script setup lang="ts">
+import type { Component } from "vue";
+import { Info, PawPrint, TriangleAlert } from "@lucide/vue";
 import { useToastStore, type ToastKind } from "../stores/toast";
 
 const toast = useToastStore();
 
-function icon(kind: ToastKind): string {
-  if (kind === "success") return "🐾";
-  if (kind === "error") return "⚠️";
-  return "ℹ️";
+function icon(kind: ToastKind): Component {
+  if (kind === "success") return PawPrint;
+  if (kind === "error") return TriangleAlert;
+  return Info;
 }
 </script>
 
@@ -21,7 +23,7 @@ function icon(kind: ToastKind): string {
           :class="t.kind"
           @click="toast.dismiss(t.id)"
         >
-          <span class="ico">{{ icon(t.kind) }}</span>
+          <span class="ico"><component :is="icon(t.kind)" :size="18" /></span>
           <span>{{ t.message }}</span>
         </div>
       </TransitionGroup>
@@ -57,16 +59,26 @@ function icon(kind: ToastKind): string {
   font-size: 0.92rem;
 }
 .toast .ico {
-  font-size: 1.1rem;
+  display: inline-flex;
+  align-items: center;
 }
 .toast.success {
   border-left-color: var(--ok);
 }
+.toast.success .ico {
+  color: var(--ok);
+}
 .toast.error {
   border-left-color: var(--danger);
 }
+.toast.error .ico {
+  color: var(--danger);
+}
 .toast.info {
   border-left-color: var(--corgi);
+}
+.toast.info .ico {
+  color: var(--corgi);
 }
 
 .toast-enter-active,

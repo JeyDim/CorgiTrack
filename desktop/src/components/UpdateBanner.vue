@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { Dog, X } from "@lucide/vue";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useUpdaterStore } from "../stores/updater";
 import { useToastStore } from "../stores/toast";
@@ -31,7 +32,7 @@ async function onUpdate() {
   <Teleport to="body">
     <Transition name="update">
       <div v-if="show" class="update-banner" :class="{ busy: updater.installing }">
-        <span class="ico">🐕</span>
+        <span class="ico"><Dog :size="22" /></span>
 
         <div class="msg">
           <strong>Доступна версия {{ updater.version }}</strong>
@@ -54,7 +55,7 @@ async function onUpdate() {
           aria-label="Скрыть"
           @click="updater.dismiss()"
         >
-          ✕
+          <X :size="16" />
         </button>
 
         <div v-if="updater.installing" class="progress">
@@ -87,8 +88,10 @@ async function onUpdate() {
 }
 
 .ico {
-  font-size: 1.25rem;
   flex: none;
+  display: inline-flex;
+  align-items: center;
+  color: var(--corgi-deep);
 }
 
 .msg {
@@ -144,7 +147,9 @@ async function onUpdate() {
   border-radius: 50%;
   background: transparent;
   color: var(--ink-soft);
-  font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition:
     background 0.14s ease,
     color 0.14s ease;

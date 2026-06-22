@@ -1,6 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
+import {
+  Dog as DogIcon,
+  Megaphone,
+  PawPrint,
+  Pencil,
+  Plus,
+  Send,
+  Trash2,
+  Users,
+} from "@lucide/vue";
 
 import type { FamilyMember } from "../api/types";
 import { useSettingsStore } from "../stores/settings";
@@ -90,16 +100,16 @@ onMounted(reload);
   <div class="view">
     <header class="view-head spread">
       <div>
-        <h1>👪 Семья</h1>
+        <h1><Users :size="24" /> Семья</h1>
         <p class="muted">Участники, которым бот пишет напоминания о приёмах.</p>
       </div>
       <button v-if="hasHousehold" class="btn btn-primary" @click="openCreate">
-        ➕ Добавить
+        <Plus :size="18" /> Добавить
       </button>
     </header>
 
     <div v-if="!hasHousehold" class="empty card">
-      <div class="empty-emoji">🐕‍🦺</div>
+      <div class="empty-emoji"><DogIcon :size="52" /></div>
       <h3>Семья не выбрана</h3>
       <p class="muted">Выберите семью в настройках, чтобы управлять участниками.</p>
       <button class="btn btn-primary" @click="router.push({ name: 'settings' })">
@@ -108,12 +118,16 @@ onMounted(reload);
     </div>
 
     <div v-else-if="loading" class="loading">
-      <span class="paw-loader"><span>🐾</span><span>🐾</span><span>🐾</span></span>
+      <span class="paw-loader">
+        <span><PawPrint :size="22" /></span>
+        <span><PawPrint :size="22" /></span>
+        <span><PawPrint :size="22" /></span>
+      </span>
     </div>
 
     <template v-else>
       <div class="card info">
-        <span class="info-ico">📣</span>
+        <span class="info-ico"><Megaphone :size="20" /></span>
         <p class="muted small">
           При напоминании сначала пишем участнику с наименьшим порядком. Если за
           отведённое время никто не нажал «Принято» — повтор тому же человеку,
@@ -123,12 +137,14 @@ onMounted(reload);
       </div>
 
       <div v-if="!members.length" class="empty card">
-        <div class="empty-emoji">🧑‍🤝‍🧑</div>
+        <div class="empty-emoji"><Users :size="52" /></div>
         <h3>Пока никого нет</h3>
         <p class="muted">
           Добавьте участников семьи — им бот будет присылать напоминания.
         </p>
-        <button class="btn btn-primary" @click="openCreate">➕ Добавить участника</button>
+        <button class="btn btn-primary" @click="openCreate">
+          <Plus :size="18" /> Добавить участника
+        </button>
       </div>
 
       <div v-else class="m-list">
@@ -146,7 +162,7 @@ onMounted(reload);
             <strong>{{ m.display_name }}</strong>
             <div class="m-meta muted small">
               <span v-if="m.telegram_user_id" class="tg-tag">
-                ✈️ {{ m.telegram_user_id }}
+                <Send :size="13" /> {{ m.telegram_user_id }}
               </span>
               <span v-else class="tg-tag off">Telegram не привязан</span>
             </div>
@@ -163,8 +179,20 @@ onMounted(reload);
           </button>
 
           <div class="m-actions">
-            <button class="btn btn-ghost btn-sm" @click="openEdit(m)">✏️</button>
-            <button class="btn btn-ghost btn-sm" @click="deleteTarget = m">🗑</button>
+            <button
+              class="btn btn-ghost btn-sm"
+              title="Изменить"
+              @click="openEdit(m)"
+            >
+              <Pencil :size="16" />
+            </button>
+            <button
+              class="btn btn-ghost btn-sm"
+              title="Удалить"
+              @click="deleteTarget = m"
+            >
+              <Trash2 :size="16" />
+            </button>
           </div>
         </article>
       </div>
@@ -211,6 +239,9 @@ onMounted(reload);
 }
 .view-head h1 {
   font-size: 1.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
 }
 .view-head p {
   margin: 0.3rem 0 0;
@@ -230,19 +261,22 @@ onMounted(reload);
   gap: 0.6rem;
 }
 .empty-emoji {
-  font-size: 3rem;
+  color: var(--corgi);
+  line-height: 0;
 }
 
 .info {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.7rem;
   padding: 0.9rem 1.1rem;
   background: var(--corgi-wash);
 }
 .info-ico {
-  font-size: 1.2rem;
-  line-height: 1.4;
+  display: inline-flex;
+  align-items: center;
+  color: var(--corgi-deep);
+  margin-top: 0.1rem;
 }
 .info p {
   margin: 0;
@@ -297,9 +331,12 @@ onMounted(reload);
   margin-top: 0.2rem;
 }
 .tg-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
   background: var(--corgi-wash);
   color: var(--ink);
-  padding: 0.02rem 0.5rem;
+  padding: 0.05rem 0.55rem;
   border-radius: var(--r-pill);
   font-weight: 600;
 }

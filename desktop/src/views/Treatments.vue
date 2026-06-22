@@ -1,6 +1,17 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
+import {
+  Bone,
+  Clock,
+  Dog as DogIcon,
+  PawPrint,
+  Pencil,
+  Pill,
+  Plus,
+  Syringe,
+  Trash2,
+} from "@lucide/vue";
 
 import type { Dog, Treatment } from "../api/types";
 import { PILL_CATEGORY_LABEL, TREATMENT_KIND_LABEL } from "../api/types";
@@ -115,16 +126,16 @@ onMounted(reload);
   <div class="view">
     <header class="view-head spread">
       <div>
-        <h1>💊 Лечения</h1>
+        <h1><Pill :size="24" /> Лечения</h1>
         <p class="muted">Таблетки и прививки — расписание приёмов.</p>
       </div>
       <button v-if="hasHousehold" class="btn btn-primary" @click="openCreate">
-        ➕ Добавить
+        <Plus :size="18" /> Добавить
       </button>
     </header>
 
     <div v-if="!hasHousehold" class="empty card">
-      <div class="empty-emoji">🐕‍🦺</div>
+      <div class="empty-emoji"><DogIcon :size="52" /></div>
       <h3>Семья не выбрана</h3>
       <p class="muted">Выберите семью в настройках, чтобы управлять лечениями.</p>
       <button class="btn btn-primary" @click="router.push({ name: 'settings' })">
@@ -133,11 +144,15 @@ onMounted(reload);
     </div>
 
     <div v-else-if="loading" class="loading">
-      <span class="paw-loader"><span>🐾</span><span>🐾</span><span>🐾</span></span>
+      <span class="paw-loader">
+        <span><PawPrint :size="22" /></span>
+        <span><PawPrint :size="22" /></span>
+        <span><PawPrint :size="22" /></span>
+      </span>
     </div>
 
     <div v-else-if="!dogs.length" class="empty card">
-      <div class="empty-emoji">🦴</div>
+      <div class="empty-emoji"><Bone :size="52" /></div>
       <h3>Нет собак</h3>
       <p class="muted">
         Добавьте собаку через Telegram-бота или API — и здесь появятся назначения.
@@ -147,7 +162,7 @@ onMounted(reload);
     <div v-else class="dogs">
       <section v-for="g in grouped" :key="g.dog.id" class="dog-block">
         <div class="dog-head">
-          <span class="dog-emoji">🐶</span>
+          <span class="dog-emoji"><DogIcon :size="20" /></span>
           <h2>{{ g.dog.name }}</h2>
           <span class="count muted">{{ g.items.length }}</span>
         </div>
@@ -164,7 +179,7 @@ onMounted(reload);
             :class="{ inactive: !t.active }"
           >
             <div class="t-kind" :title="TREATMENT_KIND_LABEL[t.kind]">
-              {{ t.kind === "vaccine" ? "💉" : "💊" }}
+              <component :is="t.kind === 'vaccine' ? Syringe : Pill" :size="24" />
             </div>
 
             <div class="t-main">
@@ -176,7 +191,9 @@ onMounted(reload);
                 <span v-if="t.dose_label">{{ t.dose_label }}</span>
                 <span>· каждые {{ t.cycle_days }} дн.</span>
                 <span>· с {{ formatDate(t.start_at) }}</span>
-                <span>· ⏰ {{ t.reminder_time.slice(0, 5) }}</span>
+                <span class="t-time"
+                  >· <Clock :size="13" /> {{ t.reminder_time.slice(0, 5) }}</span
+                >
               </div>
             </div>
 
@@ -191,12 +208,19 @@ onMounted(reload);
             </button>
 
             <div class="t-actions">
-              <button class="btn btn-ghost btn-sm" @click="openEdit(t)">✏️</button>
               <button
                 class="btn btn-ghost btn-sm"
+                title="Изменить"
+                @click="openEdit(t)"
+              >
+                <Pencil :size="16" />
+              </button>
+              <button
+                class="btn btn-ghost btn-sm"
+                title="Удалить"
                 @click="deleteTarget = t"
               >
-                🗑
+                <Trash2 :size="16" />
               </button>
             </div>
           </article>
@@ -246,6 +270,9 @@ onMounted(reload);
 }
 .view-head h1 {
   font-size: 1.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
 }
 .view-head p {
   margin: 0.3rem 0 0;
@@ -265,7 +292,8 @@ onMounted(reload);
   gap: 0.6rem;
 }
 .empty-emoji {
-  font-size: 3rem;
+  color: var(--corgi);
+  line-height: 0;
 }
 
 .dogs {
@@ -283,7 +311,9 @@ onMounted(reload);
   font-size: 1.15rem;
 }
 .dog-emoji {
-  font-size: 1.3rem;
+  display: inline-flex;
+  align-items: center;
+  color: var(--corgi-deep);
 }
 .count {
   font-size: 0.85rem;
@@ -318,9 +348,11 @@ onMounted(reload);
   opacity: 0.6;
 }
 .t-kind {
-  font-size: 1.5rem;
   width: 2rem;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--corgi-deep);
 }
 .t-main {
   flex: 1;
@@ -344,6 +376,11 @@ onMounted(reload);
   padding: 0.02rem 0.5rem;
   border-radius: var(--r-pill);
   font-weight: 600;
+}
+.t-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
 }
 .t-actions {
   display: flex;
