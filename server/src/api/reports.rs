@@ -16,9 +16,9 @@ use crate::util::timezone;
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/households/:id/report.csv", get(report_csv))
-        .route("/households/:id/due", get(due))
-        .route("/households/:id/calendar-url", get(calendar_url))
+        .route("/households/{id}/report.csv", get(report_csv))
+        .route("/households/{id}/due", get(due))
+        .route("/households/{id}/calendar-url", get(calendar_url))
 }
 
 async fn report_csv(State(state): State<AppState>, Path(id): Path<i32>) -> AppResult<Response> {

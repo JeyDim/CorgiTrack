@@ -28,7 +28,7 @@ pub async fn build_ical(
     let since = Utc::now() - Duration::days(30);
     let sql =
         format!("{DETAIL_SELECT} WHERE g.household_id = $1 AND d.due_at >= $2 ORDER BY d.due_at");
-    let rows = sqlx::query(&sql)
+    let rows = sqlx::query(sqlx::AssertSqlSafe(sql))
         .bind(household.id)
         .bind(since)
         .fetch_all(pool)

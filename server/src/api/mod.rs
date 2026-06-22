@@ -20,9 +20,9 @@ use crate::state::AppState;
 pub fn router(state: AppState) -> Router {
     let public = Router::new()
         .route("/health", get(health::health))
-        .route("/calendar/:filename", get(calendar::calendar_ics))
+        .route("/calendar/{filename}", get(calendar::calendar_ics))
         .route(
-            "/api/doses/:dose_id/taken",
+            "/api/doses/{dose_id}/taken",
             get(doses::mark_taken_public).post(doses::mark_taken_public),
         );
 

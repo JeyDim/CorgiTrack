@@ -16,7 +16,7 @@ use crate::state::AppState;
 pub fn protected_router() -> Router<AppState> {
     Router::new()
         .route("/doses", get(list_doses))
-        .route("/doses/:id/status", post(update_status))
+        .route("/doses/{id}/status", post(update_status))
 }
 
 #[derive(Debug, Deserialize)]

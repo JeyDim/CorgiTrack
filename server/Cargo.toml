@@ -10,12 +10,12 @@ name = "corgitrack"
 path = "src/main.rs"
 
 [dependencies]
-axum = "0.7"
+axum = "0.8"
 tokio = { version = "1", features = ["full"] }
 tower = "0.5"
 tower-http = { version = "0.7", features = ["cors", "trace"] }
 
-sqlx = { version = "0.8", default-features = false, features = [
+sqlx = { version = "0.9", default-features = false, features = [
     "runtime-tokio",
     "tls-rustls",
     "postgres",
@@ -27,7 +27,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 chrono = { version = "0.4", features = ["serde"] }
-chrono-tz = "0.9"
+chrono-tz = "0.10"
 
 # rustls вместо native-tls: в Docker-образе не нужен OpenSSL (легче на ARM/Pi).
 teloxide = { version = "0.17", default-features = false, features = [

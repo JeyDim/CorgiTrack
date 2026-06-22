@@ -11,7 +11,7 @@ use crate::state::AppState;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/members", get(list).post(create))
-        .route("/members/:id", get(get_one).patch(update).delete(delete))
+        .route("/members/{id}", get(get_one).patch(update).delete(delete))
 }
 
 #[derive(Debug, Deserialize)]
