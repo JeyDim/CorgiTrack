@@ -8,7 +8,9 @@ use sqlx::QueryBuilder;
 
 use crate::error::{AppError, AppResult};
 use crate::models::{Dose, DoseDetail, DoseStatus, DoseView};
-use crate::services::schedules::{mark_taken_by_api_key, row_to_detail, DETAIL_SELECT};
+use crate::services::schedules::{
+    mark_taken_by_api_key, row_to_detail, snapshot_treatment_into_dose, DETAIL_SELECT,
+};
 use crate::state::AppState;
 
 pub fn protected_router() -> Router<AppState> {
@@ -62,7 +64,10 @@ pub async fn list_doses(
     let mut qb = QueryBuilder::new(DETAIL_SELECT);
     qb.push(" WHERE 1=1");
     if let Some(hh) = filter.household_id {
-        qb.push(" AND g.household_id = ").push_bind(hh);
+        // COALESCE со снимком: дозы удалённых назначений (g.household_id = NULL)
+        // продолжают находиться по семье из снимка дозы.
+        qb.push(" AND COALESCE(g.household_id, d.household_id) = ")
+            .push_bind(hh);
     }
     if let Some(status) = filter.status {
         qb.push(" AND d.status = ").push_bind(status);
@@ -98,9 +103,6 @@ pub async fn update_status(
             status = $2, \
             note = COALESCE($3, note), \
             taken_at = CASE WHEN $2 = 'taken' THEN now() ELSE taken_at END, \
-            clinic = CASE WHEN $2 = 'taken' \
-                THEN COALESCE(clinic, (SELECT t.clinic FROM treatments t WHERE t.id = doses.treatment_id)) \
-                ELSE clinic END, \
             confirmed_by_member_id = COALESCE($4, confirmed_by_member_id) \
          WHERE id = $1 RETURNING *",
     )
@@ -110,6 +112,17 @@ pub async fn update_status(
     .bind(body.member_id)
     .fetch_optional(&state.pool)
     .await?;
-    dose.map(Json)
-        .ok_or_else(|| AppError::NotFound("Доза не найдена".to_string()))
+    let Some(mut dose) = dose else {
+        return Err(AppError::NotFound("Доза не найдена".to_string()));
+    };
+    // В момент отметки «принято» фиксируем снимок настроек назначения и собаки в
+    // саму дозу — дальше дозу/назначение можно править или удалять, не трогая историю.
+    if dose.status == DoseStatus::Taken {
+        snapshot_treatment_into_dose(&state.pool, dose.id).await?;
+        dose = sqlx::query_as::<_, Dose>("SELECT * FROM doses WHERE id = $1")
+            .bind(dose.id)
+            .fetch_one(&state.pool)
+            .await?;
+    }
+    Ok(Json(dose))
 }

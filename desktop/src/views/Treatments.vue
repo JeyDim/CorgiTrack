@@ -220,8 +220,9 @@ onMounted(reload);
       @close="deleteTarget = null"
     >
       <p>
-        Назначение <strong>«{{ deleteTarget.name }}»</strong> и связанные с ним
-        дозы будут удалены. Действие необратимо.
+        Назначение <strong>«{{ deleteTarget.name }}»</strong> будет удалено, а
+        будущие напоминания прекратятся. История уже принятых доз сохранится в
+        Веткниге. Действие необратимо.
       </p>
       <template #footer>
         <button class="btn btn-ghost" @click="deleteTarget = null">Отмена</button>

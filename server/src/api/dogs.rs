@@ -88,12 +88,26 @@ async fn update(
 }
 
 async fn delete(State(state): State<AppState>, Path(id): Path<i32>) -> AppResult<Json<Value>> {
+    let mut tx = state.pool.begin().await?;
+
+    // Удаление собаки убирает её назначения и дозы целиком. Дозы удаляем явно: иначе
+    // каскад dogs → treatments оставил бы их «сиротами» (treatment_id → NULL по
+    // ON DELETE SET NULL). SET NULL предназначен только для удаления самого назначения.
+    sqlx::query(
+        "DELETE FROM doses WHERE treatment_id IN (SELECT id FROM treatments WHERE dog_id = $1)",
+    )
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
+
     let result = sqlx::query("DELETE FROM dogs WHERE id = $1")
         .bind(id)
-        .execute(&state.pool)
+        .execute(&mut *tx)
         .await?;
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound("Собака не найдена".to_string()));
     }
+
+    tx.commit().await?;
     Ok(Json(json!({ "deleted": id })))
 }

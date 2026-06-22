@@ -144,12 +144,46 @@ async fn update(
 }
 
 async fn delete(State(state): State<AppState>, Path(id): Path<i32>) -> AppResult<Json<Value>> {
+    let mut tx = state.pool.begin().await?;
+
+    // Перед удалением фиксируем снимок настроек назначения/собаки в ПРИНЯТЫЕ дозы,
+    // чтобы после удаления (treatment_id → NULL по ON DELETE SET NULL) история
+    // приёмов сохранила название, тип, дозу, клинику и принадлежность к собаке/семье.
+    sqlx::query(
+        "UPDATE doses SET \
+            treatment_name = COALESCE(doses.treatment_name, t.name), \
+            kind           = COALESCE(doses.kind, t.kind), \
+            category       = COALESCE(doses.category, t.category), \
+            dose_label     = COALESCE(doses.dose_label, t.dose_label), \
+            instructions   = COALESCE(doses.instructions, t.instructions), \
+            cycle_days     = COALESCE(doses.cycle_days, t.cycle_days), \
+            clinic         = COALESCE(doses.clinic, t.clinic), \
+            dog_name       = COALESCE(doses.dog_name, g.name), \
+            dog_id         = COALESCE(doses.dog_id, g.id), \
+            household_id   = COALESCE(doses.household_id, g.household_id) \
+         FROM treatments t JOIN dogs g ON g.id = t.dog_id \
+         WHERE doses.treatment_id = $1 AND t.id = $1 AND doses.status = 'taken'",
+    )
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
+
+    // Непринятые дозы (запланированные/напомненные/пропущенные) — это будущее
+    // расписание, а не история приёмов. Удаляем их, чтобы не плодить «сирот»;
+    // в живых остаётся только история принятых доз.
+    sqlx::query("DELETE FROM doses WHERE treatment_id = $1 AND status <> 'taken'")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+
     let result = sqlx::query("DELETE FROM treatments WHERE id = $1")
         .bind(id)
-        .execute(&state.pool)
+        .execute(&mut *tx)
         .await?;
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound("Назначение не найдено".to_string()));
     }
+
+    tx.commit().await?;
     Ok(Json(json!({ "deleted": id })))
 }

@@ -71,13 +71,28 @@ async fn update(
 }
 
 async fn delete(State(state): State<AppState>, Path(id): Path<i32>) -> AppResult<Json<Value>> {
+    let mut tx = state.pool.begin().await?;
+
+    // Удаление семьи убирает её собак, назначения и дозы целиком. Дозы удаляем явно,
+    // чтобы каскад не оставил их «сиротами» через ON DELETE SET NULL на treatment_id.
+    sqlx::query(
+        "DELETE FROM doses WHERE treatment_id IN ( \
+            SELECT t.id FROM treatments t JOIN dogs g ON g.id = t.dog_id \
+            WHERE g.household_id = $1)",
+    )
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
+
     let result = sqlx::query("DELETE FROM households WHERE id = $1")
         .bind(id)
-        .execute(&state.pool)
+        .execute(&mut *tx)
         .await?;
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound("Семья не найдена".to_string()));
     }
+
+    tx.commit().await?;
     Ok(Json(serde_json::json!({ "deleted": id })))
 }
 

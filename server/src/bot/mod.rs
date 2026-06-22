@@ -209,14 +209,14 @@ fn render_due_list(doses: &[DoseDetail]) -> String {
     for d in doses {
         lines.push(format!(
             "- {}: {}, {}",
-            d.dog_name,
-            d.treatment.name,
+            d.dog_name.as_deref().unwrap_or(""),
+            d.name,
             d.dose.due_at.format("%Y-%m-%d %H:%M")
         ));
-        if let Some(label) = &d.treatment.dose_label {
+        if let Some(label) = &d.dose_label {
             lines.push(format!("  Доза: {label}"));
         }
-        if let Some(instructions) = &d.treatment.instructions {
+        if let Some(instructions) = &d.instructions {
             lines.push(format!("  {instructions}"));
         }
     }
@@ -232,7 +232,7 @@ fn due_keyboard(doses: &[DoseDetail]) -> Option<InlineKeyboardMarkup> {
         .take(8)
         .map(|d| {
             vec![InlineKeyboardButton::callback(
-                format!("Принято: {}", d.treatment.name),
+                format!("Принято: {}", d.name),
                 format!("taken:{}", d.dose.id),
             )]
         })
@@ -273,7 +273,11 @@ async fn notify_due(
     let ready =
         mark_ready_to_remind(&state.pool, settings.reminder_lookahead_minutes as i64).await?;
     for d in &ready {
-        let members = ordered_notify_members(&state.pool, d.household_id).await?;
+        // Активные дозы всегда привязаны к живому назначению и семье; None не ждём.
+        let Some(household_id) = d.household_id else {
+            continue;
+        };
+        let members = ordered_notify_members(&state.pool, household_id).await?;
         if let Some(primary) = members.first() {
             send_member_message(bot, primary, d, "Напоминание").await?;
         }
@@ -283,7 +287,10 @@ async fn notify_due(
     let reminded = get_reminded_doses(&state.pool).await?;
     let now = Utc::now();
     for d in &reminded {
-        let members = ordered_notify_members(&state.pool, d.household_id).await?;
+        let Some(household_id) = d.household_id else {
+            continue;
+        };
+        let members = ordered_notify_members(&state.pool, household_id).await?;
         let action = next_escalation_action(
             d.dose.escalation_level,
             d.dose.last_escalated_at,

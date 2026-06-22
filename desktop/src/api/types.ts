@@ -82,12 +82,20 @@ export interface Treatment {
   created_at: string;
 }
 
-/** Плоское представление дозы для UI (без секретного api_key). */
+/** Плоское представление дозы для UI (без секретного api_key). Поля назначения —
+ * это снимок дозы либо живое назначение, поэтому история приёма остаётся полной
+ * даже после удаления назначения (тогда treatment_id = null). */
 export interface DoseView {
   id: number;
-  treatment_id: number;
+  /** null, если назначение удалено (запись приёма при этом сохраняется). */
+  treatment_id: number | null;
   treatment_name: string;
+  /** Вид (снимок): нужен Веткниге, чтобы разнести приёмы по разделам. */
+  kind: TreatmentKind | null;
+  /** Категория таблетки (снимок): tick / worm. null у прививок и старых записей. */
+  category: PillCategory | null;
   dog_name: string;
+  dog_id: number | null;
   dose_label: string | null;
   instructions: string | null;
   due_at: string;
@@ -102,7 +110,8 @@ export interface DoseView {
 /** Сырой ряд дозы, который возвращает POST /doses/{id}/status. */
 export interface Dose {
   id: number;
-  treatment_id: number;
+  /** null, если назначение удалено. */
+  treatment_id: number | null;
   due_at: string;
   status: DoseStatus;
   reminded_at: string | null;

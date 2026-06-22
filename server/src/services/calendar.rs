@@ -56,7 +56,11 @@ pub async fn build_ical(
         let end = start + Duration::minutes(15);
         let event = Event::new()
             .uid(&format!("dose-{}@corgitrack", d.dose.id))
-            .summary(&format!("{}: {}", d.dog_name, d.treatment.name))
+            .summary(&format!(
+                "{}: {}",
+                d.dog_name.as_deref().unwrap_or(""),
+                d.name
+            ))
             .starts(start)
             .ends(end)
             .description(&event_description(public_base_url, d))
@@ -85,14 +89,14 @@ pub fn mark_taken_url(public_base_url: &str, dose_id: i32, api_key: &str) -> Str
 
 /// Текст описания события календаря.
 pub fn event_description(public_base_url: &str, d: &DoseDetail) -> String {
-    let mut parts = vec![
-        format!("Статус: {}", d.dose.status.label()),
-        format!("Цикл: каждые {} дн.", d.treatment.cycle_days),
-    ];
-    if let Some(label) = &d.treatment.dose_label {
+    let mut parts = vec![format!("Статус: {}", d.dose.status.label())];
+    if let Some(cycle_days) = d.cycle_days {
+        parts.push(format!("Цикл: каждые {cycle_days} дн."));
+    }
+    if let Some(label) = &d.dose_label {
         parts.push(format!("Доза: {label}"));
     }
-    if let Some(instructions) = &d.treatment.instructions {
+    if let Some(instructions) = &d.instructions {
         parts.push(instructions.clone());
     }
     parts.push(format!(

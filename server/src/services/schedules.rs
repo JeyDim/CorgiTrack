@@ -5,9 +5,7 @@ use chrono_tz::Tz;
 use sqlx::postgres::PgRow;
 use sqlx::{PgPool, Row};
 
-use crate::models::{
-    Dose, DoseDetail, DoseStatus, FamilyMember, Household, Treatment, TreatmentKind,
-};
+use crate::models::{Dose, DoseDetail, DoseStatus, FamilyMember, Household, Treatment};
 use crate::util::{generate_api_key, local_to_utc};
 
 /// Плановое UTC-время приёма для дня `day`, взяв время `reminder_time` в локальной зоне.
@@ -74,16 +72,27 @@ pub async fn ensure_future_doses(
     Ok(created)
 }
 
+// Колонки назначения/собаки берём как COALESCE(снимок дозы, живое назначение):
+// для отмеченных доз и для доз удалённых назначений работает снимок, для будущих
+// (ещё не принятых) — живые treatments/dogs. JOIN-ы LEFT, чтобы дозы без живого
+// назначения (treatment_id = NULL) не выпадали из выборки истории.
 pub(crate) const DETAIL_SELECT: &str = "SELECT \
     d.id AS dose_id, d.treatment_id AS dose_treatment_id, d.due_at, d.status, d.api_key, \
     d.reminded_at, d.escalation_level, d.last_escalated_at, \
     d.taken_at, d.confirmed_by_member_id, d.note, d.clinic AS dose_clinic, d.created_at AS dose_created_at, \
-    t.id AS t_id, t.dog_id AS t_dog_id, t.name AS t_name, t.kind AS t_kind, t.category AS t_category, t.dose_label, \
-    t.cycle_days, t.start_at, t.reminder_time, t.instructions, t.active, t.clinic AS t_clinic, t.created_at AS t_created_at, \
-    g.name AS dog_name, g.household_id AS household_id \
+    COALESCE(d.treatment_name, t.name)       AS eff_name, \
+    COALESCE(d.kind, t.kind)                 AS eff_kind, \
+    COALESCE(d.category, t.category)         AS eff_category, \
+    COALESCE(d.dose_label, t.dose_label)     AS eff_dose_label, \
+    COALESCE(d.instructions, t.instructions) AS eff_instructions, \
+    COALESCE(d.cycle_days, t.cycle_days)     AS eff_cycle_days, \
+    COALESCE(d.clinic, t.clinic)             AS eff_clinic, \
+    COALESCE(d.dog_name, g.name)             AS eff_dog_name, \
+    COALESCE(d.dog_id, t.dog_id)             AS eff_dog_id, \
+    COALESCE(d.household_id, g.household_id) AS eff_household_id \
     FROM doses d \
-    JOIN treatments t ON t.id = d.treatment_id \
-    JOIN dogs g ON g.id = t.dog_id";
+    LEFT JOIN treatments t ON t.id = d.treatment_id \
+    LEFT JOIN dogs g ON g.id = t.dog_id";
 
 pub(crate) fn row_to_detail(row: &PgRow) -> Result<DoseDetail, sqlx::Error> {
     let dose = Dose {
@@ -101,27 +110,47 @@ pub(crate) fn row_to_detail(row: &PgRow) -> Result<DoseDetail, sqlx::Error> {
         clinic: row.try_get("dose_clinic")?,
         created_at: row.try_get("dose_created_at")?,
     };
-    let treatment = Treatment {
-        id: row.try_get("t_id")?,
-        dog_id: row.try_get("t_dog_id")?,
-        name: row.try_get("t_name")?,
-        kind: row.try_get::<TreatmentKind, _>("t_kind")?,
-        category: row.try_get("t_category")?,
-        dose_label: row.try_get("dose_label")?,
-        cycle_days: row.try_get("cycle_days")?,
-        start_at: row.try_get("start_at")?,
-        reminder_time: row.try_get("reminder_time")?,
-        instructions: row.try_get("instructions")?,
-        active: row.try_get("active")?,
-        clinic: row.try_get("t_clinic")?,
-        created_at: row.try_get("t_created_at")?,
-    };
     Ok(DoseDetail {
-        dog_name: row.try_get("dog_name")?,
-        household_id: row.try_get("household_id")?,
+        name: row
+            .try_get::<Option<String>, _>("eff_name")?
+            .unwrap_or_default(),
+        kind: row.try_get("eff_kind")?,
+        category: row.try_get("eff_category")?,
+        dose_label: row.try_get("eff_dose_label")?,
+        instructions: row.try_get("eff_instructions")?,
+        cycle_days: row.try_get("eff_cycle_days")?,
+        clinic: row.try_get("eff_clinic")?,
+        dog_name: row.try_get("eff_dog_name")?,
+        dog_id: row.try_get("eff_dog_id")?,
+        household_id: row.try_get("eff_household_id")?,
         dose,
-        treatment,
     })
+}
+
+/// Снять снимок настроек назначения и собаки в дозу. Идемпотентно: заполняет
+/// только пустые снимок-колонки (COALESCE с текущим значением), поэтому повторный
+/// вызов и уже сделанный ранее снимок ничего не портят. Если у дозы нет живого
+/// назначения (treatment_id = NULL), UPDATE просто не находит строк.
+pub async fn snapshot_treatment_into_dose(pool: &PgPool, dose_id: i32) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "UPDATE doses SET \
+            treatment_name = COALESCE(doses.treatment_name, t.name), \
+            kind           = COALESCE(doses.kind, t.kind), \
+            category       = COALESCE(doses.category, t.category), \
+            dose_label     = COALESCE(doses.dose_label, t.dose_label), \
+            instructions   = COALESCE(doses.instructions, t.instructions), \
+            cycle_days     = COALESCE(doses.cycle_days, t.cycle_days), \
+            clinic         = COALESCE(doses.clinic, t.clinic), \
+            dog_name       = COALESCE(doses.dog_name, g.name), \
+            dog_id         = COALESCE(doses.dog_id, g.id), \
+            household_id   = COALESCE(doses.household_id, g.household_id) \
+         FROM treatments t JOIN dogs g ON g.id = t.dog_id \
+         WHERE doses.id = $1 AND t.id = doses.treatment_id",
+    )
+    .bind(dose_id)
+    .execute(pool)
+    .await?;
+    Ok(())
 }
 
 pub async fn get_household_for_telegram(
@@ -173,17 +202,24 @@ pub async fn mark_taken(
     let Some(member) = member else {
         return Ok(None);
     };
-    sqlx::query_as::<_, Dose>(
+    let updated: Option<i32> = sqlx::query_scalar(
         "UPDATE doses SET status = 'taken', taken_at = now(), \
-         confirmed_by_member_id = $2, note = $3, \
-         clinic = COALESCE(clinic, (SELECT t.clinic FROM treatments t WHERE t.id = doses.treatment_id)) \
-         WHERE id = $1 RETURNING *",
+         confirmed_by_member_id = $2, note = $3 \
+         WHERE id = $1 RETURNING id",
     )
     .bind(dose_id)
     .bind(member.id)
     .bind(note)
     .fetch_optional(pool)
-    .await
+    .await?;
+    let Some(id) = updated else {
+        return Ok(None);
+    };
+    snapshot_treatment_into_dose(pool, id).await?;
+    sqlx::query_as::<_, Dose>("SELECT * FROM doses WHERE id = $1")
+        .bind(id)
+        .fetch_optional(pool)
+        .await
 }
 
 /// Отметить дозу принятой по per-dose api_key (ссылка из календаря).
@@ -193,16 +229,23 @@ pub async fn mark_taken_by_api_key(
     api_key: &str,
     note: Option<&str>,
 ) -> Result<Option<Dose>, sqlx::Error> {
-    sqlx::query_as::<_, Dose>(
-        "UPDATE doses SET status = 'taken', taken_at = now(), note = $3, \
-         clinic = COALESCE(clinic, (SELECT t.clinic FROM treatments t WHERE t.id = doses.treatment_id)) \
-         WHERE id = $1 AND api_key = $2 RETURNING *",
+    let updated: Option<i32> = sqlx::query_scalar(
+        "UPDATE doses SET status = 'taken', taken_at = now(), note = $3 \
+         WHERE id = $1 AND api_key = $2 RETURNING id",
     )
     .bind(dose_id)
     .bind(api_key)
     .bind(note)
     .fetch_optional(pool)
-    .await
+    .await?;
+    let Some(id) = updated else {
+        return Ok(None);
+    };
+    snapshot_treatment_into_dose(pool, id).await?;
+    sqlx::query_as::<_, Dose>("SELECT * FROM doses WHERE id = $1")
+        .bind(id)
+        .fetch_optional(pool)
+        .await
 }
 
 /// Все активные напоминания (статус reminded) с деталями — для шага эскалации.

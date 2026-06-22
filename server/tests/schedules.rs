@@ -1,7 +1,7 @@
 use chrono::{NaiveTime, TimeZone, Utc};
 use chrono_tz::Tz;
 
-use corgitrack::models::{Dose, DoseDetail, DoseStatus, Treatment, TreatmentKind};
+use corgitrack::models::{Dose, DoseDetail, DoseStatus, TreatmentKind};
 use corgitrack::services::calendar::{event_description, mark_taken_url};
 use corgitrack::services::schedules::{
     combine_due, iter_due_dates, next_escalation_action, EscalationAction,
@@ -112,24 +112,9 @@ fn escalation_noop_without_state() {
 
 fn sample_detail() -> DoseDetail {
     let now = at(2026, 5, 1, 5, 0);
-    let treatment = Treatment {
-        id: 1,
-        dog_id: 1,
-        name: "Test pill".to_string(),
-        kind: TreatmentKind::Pill,
-        category: None,
-        dose_label: None,
-        cycle_days: 3,
-        start_at: now,
-        reminder_time: NaiveTime::from_hms_opt(9, 0, 0).unwrap(),
-        instructions: None,
-        clinic: None,
-        active: true,
-        created_at: now,
-    };
     let dose = Dose {
         id: 42,
-        treatment_id: 1,
+        treatment_id: Some(1),
         due_at: now,
         status: DoseStatus::Planned,
         api_key: Some("secret-key-123456789".to_string()),
@@ -144,8 +129,15 @@ fn sample_detail() -> DoseDetail {
     };
     DoseDetail {
         dose,
-        treatment,
-        dog_name: "Корги".to_string(),
-        household_id: 1,
+        name: "Test pill".to_string(),
+        kind: Some(TreatmentKind::Pill),
+        category: None,
+        dose_label: None,
+        instructions: None,
+        cycle_days: Some(3),
+        clinic: None,
+        dog_name: Some("Корги".to_string()),
+        dog_id: Some(1),
+        household_id: Some(1),
     }
 }

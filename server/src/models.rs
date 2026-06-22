@@ -107,7 +107,9 @@ pub struct Treatment {
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct Dose {
     pub id: i32,
-    pub treatment_id: i32,
+    /// NULL, если исходное назначение удалено (история приёма при этом сохраняется
+    /// благодаря снимку настроек в самой дозе — см. колонки-снимки в схеме).
+    pub treatment_id: Option<i32>,
     pub due_at: DateTime<Utc>,
     pub status: DoseStatus,
     pub api_key: Option<String>,
@@ -124,23 +126,38 @@ pub struct Dose {
     pub created_at: DateTime<Utc>,
 }
 
-/// Доза вместе с данными назначения и собаки — то, что нужно для напоминаний,
-/// календаря и отчётов (аналог selectinload-загрузок в Python).
+/// Доза с уже разрешёнными данными назначения и собаки — то, что нужно для
+/// напоминаний, календаря и отчётов. Каждое поле — это «снимок дозы, иначе
+/// живое назначение» (COALESCE на уровне SQL, см. `DETAIL_SELECT`). Поэтому
+/// деталь читается даже когда назначение удалено (`dose.treatment_id` = NULL).
 #[derive(Debug, Clone)]
 pub struct DoseDetail {
     pub dose: Dose,
-    pub treatment: Treatment,
-    pub dog_name: String,
-    pub household_id: i32,
+    pub name: String,
+    pub kind: Option<TreatmentKind>,
+    pub category: Option<PillCategory>,
+    pub dose_label: Option<String>,
+    pub instructions: Option<String>,
+    pub cycle_days: Option<i32>,
+    pub clinic: Option<String>,
+    pub dog_name: Option<String>,
+    pub dog_id: Option<i32>,
+    pub household_id: Option<i32>,
 }
 
 /// Плоское представление дозы для JSON-ответов API (без секретного api_key).
+/// Все поля назначения — разрешённые (снимок дозы либо живое назначение), чтобы
+/// история приёма оставалась полной после удаления назначения.
 #[derive(Debug, Clone, Serialize)]
 pub struct DoseView {
     pub id: i32,
-    pub treatment_id: i32,
+    /// NULL, если назначение удалено (запись приёма при этом сохраняется).
+    pub treatment_id: Option<i32>,
     pub treatment_name: String,
+    pub kind: Option<TreatmentKind>,
+    pub category: Option<PillCategory>,
     pub dog_name: String,
+    pub dog_id: Option<i32>,
     pub dose_label: Option<String>,
     pub instructions: Option<String>,
     pub due_at: DateTime<Utc>,
@@ -156,17 +173,20 @@ impl DoseView {
     pub fn from_detail(d: &DoseDetail) -> Self {
         Self {
             id: d.dose.id,
-            treatment_id: d.treatment.id,
-            treatment_name: d.treatment.name.clone(),
-            dog_name: d.dog_name.clone(),
-            dose_label: d.treatment.dose_label.clone(),
-            instructions: d.treatment.instructions.clone(),
+            treatment_id: d.dose.treatment_id,
+            treatment_name: d.name.clone(),
+            kind: d.kind,
+            category: d.category,
+            dog_name: d.dog_name.clone().unwrap_or_default(),
+            dog_id: d.dog_id,
+            dose_label: d.dose_label.clone(),
+            instructions: d.instructions.clone(),
             due_at: d.dose.due_at,
             status: d.dose.status,
             reminded_at: d.dose.reminded_at,
             taken_at: d.dose.taken_at,
             note: d.dose.note.clone(),
-            clinic: d.dose.clinic.clone().or_else(|| d.treatment.clinic.clone()),
+            clinic: d.clinic.clone(),
         }
     }
 }

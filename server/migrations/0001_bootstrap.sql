@@ -69,7 +69,9 @@ CREATE TABLE IF NOT EXISTS treatments (
 
 CREATE TABLE IF NOT EXISTS doses (
     id                     SERIAL PRIMARY KEY,
-    treatment_id           INTEGER     NOT NULL REFERENCES treatments(id) ON DELETE CASCADE,
+    -- При удалении назначения ставим NULL (ON DELETE SET NULL), а не удаляем дозу —
+    -- история приёмов остаётся жить за счёт снимка настроек ниже.
+    treatment_id           INTEGER     REFERENCES treatments(id) ON DELETE SET NULL,
     due_at                 TIMESTAMPTZ NOT NULL,
     status                 dosestatus  NOT NULL DEFAULT 'planned',
     api_key                VARCHAR(64),
@@ -81,9 +83,24 @@ CREATE TABLE IF NOT EXISTS doses (
     taken_at               TIMESTAMPTZ,
     confirmed_by_member_id INTEGER     REFERENCES family_members(id),
     note                   TEXT,
+    -- Снимок настроек назначения и собаки на момент отметки «принято» (а также при
+    -- удалении назначения). Позволяет позже менять дозу/название/клинику или вовсе
+    -- удалить назначение, не затрагивая историю приёмов. NULL до отметки — тогда
+    -- значения берутся из живого treatments через COALESCE.
+    treatment_name         VARCHAR(200),
+    kind                   treatmentkind,
+    category               pillcategory,
+    dose_label             VARCHAR(120),
+    instructions           TEXT,
+    cycle_days             INTEGER,
     -- Ветклиника на момент приёма (снимок из treatments.clinic при отметке
     -- «принято»). Хранится на дозе, чтобы смена клиники не меняла историю.
     clinic                 VARCHAR(160),
+    -- Снимок собаки/семьи: нужны, чтобы отфильтровать историю приёма по семье и
+    -- собаке даже после того, как назначение удалено (treatment_id → NULL).
+    dog_name               VARCHAR(120),
+    dog_id                 INTEGER,
+    household_id           INTEGER,
     created_at             TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -97,6 +114,79 @@ ALTER TABLE treatments ADD COLUMN IF NOT EXISTS clinic VARCHAR(160);
 ALTER TABLE doses      ADD COLUMN IF NOT EXISTS clinic VARCHAR(160);
 -- Категория таблетки (NULL = не задана; в UI трактуется как «от гельминтов»).
 ALTER TABLE treatments ADD COLUMN IF NOT EXISTS category pillcategory;
+
+-- Снимок настроек назначения и собаки на дозе (для старых БД). Заполняется при
+-- отметке «принято» и при удалении назначения; до этого NULL.
+ALTER TABLE doses ADD COLUMN IF NOT EXISTS treatment_name VARCHAR(200);
+ALTER TABLE doses ADD COLUMN IF NOT EXISTS kind           treatmentkind;
+ALTER TABLE doses ADD COLUMN IF NOT EXISTS category       pillcategory;
+ALTER TABLE doses ADD COLUMN IF NOT EXISTS dose_label     VARCHAR(120);
+ALTER TABLE doses ADD COLUMN IF NOT EXISTS instructions   TEXT;
+ALTER TABLE doses ADD COLUMN IF NOT EXISTS cycle_days     INTEGER;
+ALTER TABLE doses ADD COLUMN IF NOT EXISTS dog_name       VARCHAR(120);
+ALTER TABLE doses ADD COLUMN IF NOT EXISTS dog_id         INTEGER;
+ALTER TABLE doses ADD COLUMN IF NOT EXISTS household_id   INTEGER;
+
+-- Удаление назначения не должно стирать историю приёмов: treatment_id делаем
+-- NULLABLE и пересоздаём внешний ключ как ON DELETE SET NULL (для старых БД, где
+-- он был NOT NULL + ON DELETE CASCADE). Идемпотентно: если SET NULL-ключ уже есть,
+-- блок ничего не делает.
+ALTER TABLE doses ALTER COLUMN treatment_id DROP NOT NULL;
+DO $$
+DECLARE
+    fk_name text;
+BEGIN
+    -- Снимаем любой существующий FK doses.treatment_id -> treatments, у которого
+    -- поведение при удалении НЕ «SET NULL» ('n'), чтобы пересоздать как нужно.
+    SELECT con.conname INTO fk_name
+    FROM pg_constraint con
+    JOIN pg_class rel ON rel.oid = con.conrelid
+    WHERE rel.relname = 'doses'
+      AND con.contype = 'f'
+      AND con.confrelid = 'treatments'::regclass
+      AND con.confdeltype <> 'n'
+    LIMIT 1;
+    IF fk_name IS NOT NULL THEN
+        EXECUTE format('ALTER TABLE doses DROP CONSTRAINT %I', fk_name);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint con
+        JOIN pg_class rel ON rel.oid = con.conrelid
+        WHERE rel.relname = 'doses'
+          AND con.contype = 'f'
+          AND con.confrelid = 'treatments'::regclass
+          AND con.confdeltype = 'n'
+    ) THEN
+        ALTER TABLE doses
+            ADD CONSTRAINT doses_treatment_id_fkey
+            FOREIGN KEY (treatment_id) REFERENCES treatments(id) ON DELETE SET NULL;
+    END IF;
+END$$;
+
+-- Разовый бэкфилл снимка для уже принятых доз (status = 'taken') из живого
+-- назначения и собаки. До этой версии снимок при отметке не снимался, поэтому
+-- редактирование назначения «задним числом» меняло бы старую историю приёмов.
+-- Guard `treatment_name IS NULL` делает шаг идемпотентным (bootstrap гоняется при
+-- каждом старте): после первого прогона строки уже заполнены и не переписываются.
+-- Будущие (ещё не принятые) дозы намеренно не трогаем — они должны отражать правки
+-- назначения вплоть до момента приёма.
+UPDATE doses SET
+    treatment_name = COALESCE(doses.treatment_name, t.name),
+    kind           = COALESCE(doses.kind, t.kind),
+    category       = COALESCE(doses.category, t.category),
+    dose_label     = COALESCE(doses.dose_label, t.dose_label),
+    instructions   = COALESCE(doses.instructions, t.instructions),
+    cycle_days     = COALESCE(doses.cycle_days, t.cycle_days),
+    clinic         = COALESCE(doses.clinic, t.clinic),
+    dog_name       = COALESCE(doses.dog_name, g.name),
+    dog_id         = COALESCE(doses.dog_id, g.id),
+    household_id   = COALESCE(doses.household_id, g.household_id)
+FROM treatments t JOIN dogs g ON g.id = t.dog_id
+WHERE doses.treatment_id = t.id
+  AND doses.status = 'taken'
+  AND doses.treatment_name IS NULL;
 
 -- В старых БД (из Python-версии) у created_at не было DEFAULT — приложение
 -- проставляло время само. Rust-API вставляет строки без created_at, поэтому

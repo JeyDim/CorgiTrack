@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 
-import type { Dog, DoseView, Treatment } from "../api/types";
+import type { Dog, DoseView } from "../api/types";
 import { useSettingsStore } from "../stores/settings";
 import { useToastStore } from "../stores/toast";
 
@@ -12,7 +12,6 @@ const toast = useToastStore();
 
 const loading = ref(false);
 const dogs = ref<Dog[]>([]);
-const treatments = ref<Treatment[]>([]);
 const taken = ref<DoseView[]>([]);
 const selectedDogId = ref<number | null>(null);
 
@@ -32,13 +31,11 @@ async function reload() {
   loading.value = true;
   try {
     const api = settings.api();
-    const [dogList, allTreatments, takenDoses] = await Promise.all([
+    const [dogList, takenDoses] = await Promise.all([
       api.listDogs(settings.householdId),
-      api.listTreatments(),
       api.listDoses({ household_id: settings.householdId, status: "taken" }),
     ]);
     dogs.value = dogList;
-    treatments.value = allTreatments;
     taken.value = takenDoses;
   } catch (e) {
     toast.error(`Не удалось загрузить: ${(e as Error).message}`);
@@ -46,15 +43,6 @@ async function reload() {
     loading.value = false;
   }
 }
-
-// Лечение по id — нужно, чтобы узнать вид (kind) дозы и собаку.
-const treatmentById = computed(() => {
-  const m = new Map<number, Treatment>();
-  for (const t of treatments.value) m.set(t.id, t);
-  return m;
-});
-
-const dogIds = computed(() => new Set(dogs.value.map((d) => d.id)));
 
 function entryDate(d: DoseView): string {
   return d.taken_at ?? d.due_at;
@@ -66,16 +54,15 @@ function byDateAsc(a: Entry, b: Entry): number {
 }
 
 // Разносим пройденные дозы по трём разделам, учитывая выбранную собаку.
+// Вид/категория/собака берутся из снимка самой дозы (DoseView) — поэтому записи
+// удалённых назначений тоже попадают в Веткнигу.
 const classified = computed(() => {
   const vaccine: Entry[] = [];
   const worm: Entry[] = [];
   const tick: Entry[] = [];
 
   for (const d of taken.value) {
-    const t = treatmentById.value.get(d.treatment_id);
-    if (!t) continue;
-    if (!dogIds.value.has(t.dog_id)) continue;
-    if (selectedDogId.value != null && t.dog_id !== selectedDogId.value) continue;
+    if (selectedDogId.value != null && d.dog_id !== selectedDogId.value) continue;
 
     const entry: Entry = {
       id: d.id,
@@ -87,8 +74,8 @@ const classified = computed(() => {
 
     // Прививки — отдельно; таблетки делим по явной категории.
     // Категория не задана (старые записи) → «от гельминтов».
-    if (t.kind === "vaccine") vaccine.push(entry);
-    else if (t.category === "tick") tick.push(entry);
+    if (d.kind === "vaccine") vaccine.push(entry);
+    else if (d.category === "tick") tick.push(entry);
     else worm.push(entry);
   }
 

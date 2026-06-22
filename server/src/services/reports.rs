@@ -6,14 +6,18 @@ pub async fn taken_csv_for_household(
     pool: &PgPool,
     household_id: i32,
 ) -> Result<Vec<u8>, sqlx::Error> {
+    // COALESCE(снимок дозы, живое назначение) + LEFT JOIN: принятые дозы попадают
+    // в отчёт даже после удаления назначения (treatment_id → NULL).
     let rows = sqlx::query(
-        "SELECT g.name AS dog_name, t.name AS treatment_name, t.dose_label, \
+        "SELECT COALESCE(d.dog_name, g.name) AS dog_name, \
+                COALESCE(d.treatment_name, t.name) AS treatment_name, \
+                COALESCE(d.dose_label, t.dose_label) AS dose_label, \
                 d.due_at, d.taken_at, m.display_name AS member_name, d.note \
          FROM doses d \
-         JOIN treatments t ON t.id = d.treatment_id \
-         JOIN dogs g ON g.id = t.dog_id \
+         LEFT JOIN treatments t ON t.id = d.treatment_id \
+         LEFT JOIN dogs g ON g.id = t.dog_id \
          LEFT JOIN family_members m ON m.id = d.confirmed_by_member_id \
-         WHERE g.household_id = $1 AND d.status = 'taken' \
+         WHERE COALESCE(g.household_id, d.household_id) = $1 AND d.status = 'taken' \
          ORDER BY d.taken_at DESC",
     )
     .bind(household_id)
