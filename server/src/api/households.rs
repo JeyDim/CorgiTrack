@@ -11,7 +11,10 @@ use crate::util::generate_calendar_token;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/households", get(list).post(create))
-        .route("/households/{id}", get(get_one).patch(update).delete(delete))
+        .route(
+            "/households/{id}",
+            get(get_one).patch(update).delete(delete),
+        )
 }
 
 #[derive(Debug, Deserialize)]

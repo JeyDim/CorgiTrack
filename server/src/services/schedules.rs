@@ -253,7 +253,9 @@ pub async fn get_reminded_doses(pool: &PgPool) -> Result<Vec<DoseDetail>, sqlx::
     let sql = format!(
         "{DETAIL_SELECT} WHERE t.active = true AND d.status = 'reminded' ORDER BY d.due_at"
     );
-    let rows = sqlx::query(sqlx::AssertSqlSafe(sql)).fetch_all(pool).await?;
+    let rows = sqlx::query(sqlx::AssertSqlSafe(sql))
+        .fetch_all(pool)
+        .await?;
     rows.iter().map(row_to_detail).collect()
 }
 
