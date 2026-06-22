@@ -6,7 +6,7 @@ import { writeFile } from "@tauri-apps/plugin-fs";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
 import { CorgiApi } from "../api/client";
-import type { AppSettings, FamilyMember, Household } from "../api/types";
+import type { AppSettings, Household } from "../api/types";
 import { useSettingsStore } from "../stores/settings";
 import { useToastStore } from "../stores/toast";
 import { useUpdaterStore } from "../stores/updater";
@@ -35,10 +35,6 @@ const downloading = ref(false);
 const appSettings = ref<AppSettings | null>(null);
 const savingSettings = ref(false);
 
-// Порядок обзвона членов семьи.
-const members = ref<FamilyMember[]>([]);
-const savingMembers = ref(false);
-
 onMounted(async () => {
   try {
     appVersion.value = await getVersion();
@@ -54,7 +50,6 @@ onMounted(async () => {
       /* молча: пользователь увидит при «Проверить» */
     }
     await loadAppSettings();
-    await loadMembers();
   }
 });
 
@@ -85,39 +80,6 @@ async function saveAppSettings() {
   }
 }
 
-async function loadMembers() {
-  if (settings.householdId == null) {
-    members.value = [];
-    return;
-  }
-  try {
-    const list = await settings.api().listMembers(settings.householdId);
-    members.value = list.sort(
-      (a, b) => a.escalation_order - b.escalation_order || a.id - b.id,
-    );
-  } catch {
-    members.value = [];
-  }
-}
-
-async function saveMembers() {
-  savingMembers.value = true;
-  try {
-    for (const m of members.value) {
-      await settings.api().updateMember(m.id, {
-        escalation_order: m.escalation_order,
-        notify: m.notify,
-      });
-    }
-    toast.success("Порядок обзвона сохранён");
-    await loadMembers();
-  } catch (e) {
-    toast.error(`Ошибка: ${(e as Error).message}`);
-  } finally {
-    savingMembers.value = false;
-  }
-}
-
 async function checkConnection() {
   if (!baseUrl.value.trim() || !token.value.trim()) {
     toast.error("Заполните адрес и service-токен");
@@ -141,7 +103,6 @@ async function checkConnection() {
       await settings.setHousehold(list[0].id);
     }
     await loadAppSettings();
-    await loadMembers();
     toast.success("Подключение работает 🐾");
   } catch (e) {
     toast.error(`Не удалось подключиться: ${(e as Error).message}`);
@@ -153,7 +114,6 @@ async function checkConnection() {
 async function chooseHousehold() {
   await settings.setHousehold(selectedHousehold.value);
   calendarUrl.value = null;
-  await loadMembers();
   toast.success("Семья выбрана");
 }
 
@@ -295,55 +255,6 @@ async function downloadCsv() {
           @click="chooseHousehold"
         >
           Сохранить выбор
-        </button>
-      </div>
-    </section>
-
-    <section
-      v-if="settings.householdId != null && members.length"
-      class="card pad"
-    >
-      <h3>📣 Порядок напоминаний</h3>
-      <p class="muted small">
-        При напоминании сначала пишем участнику с наименьшим номером. Если за
-        отведённое время никто не нажал «Принято» — повтор тому же человеку,
-        затем следующий по порядку. 0 уведомляется первым. Учитываются только
-        участники с галочкой и привязанным Telegram.
-      </p>
-      <div class="members">
-        <div v-for="m in members" :key="m.id" class="member-row">
-          <div class="stack member-name">
-            <strong>{{ m.display_name }}</strong>
-            <span class="muted small">
-              {{
-                m.telegram_user_id
-                  ? `Telegram ID: ${m.telegram_user_id}`
-                  : "Telegram не привязан"
-              }}
-            </span>
-          </div>
-          <label class="order-field">
-            <span class="muted small">Порядок</span>
-            <input
-              v-model.number="m.escalation_order"
-              type="number"
-              min="0"
-              class="input order-input"
-            />
-          </label>
-          <label class="notify-field">
-            <input v-model="m.notify" type="checkbox" />
-            <span class="muted small">Уведомлять</span>
-          </label>
-        </div>
-      </div>
-      <div class="actions">
-        <button
-          class="btn btn-primary"
-          :disabled="savingMembers"
-          @click="saveMembers"
-        >
-          {{ savingMembers ? "Сохраняю…" : "Сохранить порядок" }}
         </button>
       </div>
     </section>
@@ -511,38 +422,6 @@ async function downloadCsv() {
 .field .muted.small {
   margin-top: 0.15rem;
 }
-.members {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-.member-row {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.7rem 1rem;
-  background: var(--surface-2);
-  border-radius: var(--r-md);
-}
-.member-name {
-  flex: 1;
-  min-width: 0;
-}
-.order-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-.order-input {
-  width: 84px;
-}
-.notify-field {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  white-space: nowrap;
-  cursor: pointer;
-}
 .tools {
   display: flex;
   flex-direction: column;
@@ -578,9 +457,6 @@ async function downloadCsv() {
   }
   .grid-4 {
     grid-template-columns: 1fr 1fr;
-  }
-  .member-row {
-    flex-wrap: wrap;
   }
 }
 </style>

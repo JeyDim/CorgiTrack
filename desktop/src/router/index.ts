@@ -5,6 +5,7 @@ import { useSettingsStore } from "../stores/settings";
 const Dashboard = () => import("../views/Dashboard.vue");
 const Treatments = () => import("../views/Treatments.vue");
 const VetBook = () => import("../views/VetBook.vue");
+const Family = () => import("../views/Family.vue");
 const Settings = () => import("../views/Settings.vue");
 
 export const router = createRouter({
@@ -28,6 +29,12 @@ export const router = createRouter({
       name: "vetbook",
       component: VetBook,
       meta: { title: "Веткнига", icon: "📖" },
+    },
+    {
+      path: "/family",
+      name: "family",
+      component: Family,
+      meta: { title: "Семья", icon: "👪" },
     },
     {
       path: "/settings",

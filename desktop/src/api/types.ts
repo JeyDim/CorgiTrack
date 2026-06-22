@@ -38,6 +38,15 @@ export interface FamilyMember {
   created_at: string;
 }
 
+/** Создание члена семьи. household_id обязателен; остальное опционально. */
+export interface CreateMember {
+  household_id: number;
+  display_name: string;
+  telegram_user_id?: number | null;
+  notify?: boolean;
+  escalation_order?: number;
+}
+
 /** Частичное обновление члена семьи: переданы только изменяемые поля. */
 export interface UpdateMember {
   display_name?: string;

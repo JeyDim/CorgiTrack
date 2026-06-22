@@ -5,6 +5,7 @@
 import { fetch } from "@tauri-apps/plugin-http";
 import type {
   AppSettings,
+  CreateMember,
   CreateTreatment,
   Dog,
   Dose,
@@ -171,8 +172,16 @@ export class CorgiApi {
     });
   }
 
+  createMember(body: CreateMember): Promise<FamilyMember> {
+    return this.request("POST", "/api/v1/members", { body });
+  }
+
   updateMember(id: number, patch: UpdateMember): Promise<FamilyMember> {
     return this.request("PATCH", `/api/v1/members/${id}`, { body: patch });
+  }
+
+  deleteMember(id: number): Promise<{ deleted: number }> {
+    return this.request("DELETE", `/api/v1/members/${id}`);
   }
 
   // ---- settings ----
