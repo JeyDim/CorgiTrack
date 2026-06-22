@@ -27,6 +27,17 @@ export interface Dog {
   created_at: string;
 }
 
+/** Создание собаки. household_id обязателен. */
+export interface CreateDog {
+  household_id: number;
+  name: string;
+}
+
+/** Частичное обновление собаки: переданы только изменяемые поля. */
+export interface UpdateDog {
+  name?: string;
+}
+
 export interface FamilyMember {
   id: number;
   household_id: number;

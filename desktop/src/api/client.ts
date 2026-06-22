@@ -5,6 +5,7 @@
 import { fetch } from "@tauri-apps/plugin-http";
 import type {
   AppSettings,
+  CreateDog,
   CreateMember,
   CreateTreatment,
   Dog,
@@ -16,6 +17,7 @@ import type {
   StatusUpdate,
   Treatment,
   UpdateAppSettings,
+  UpdateDog,
   UpdateMember,
   UpdateTreatment,
 } from "./types";
@@ -164,6 +166,18 @@ export class CorgiApi {
     return this.request("GET", "/api/v1/dogs", {
       query: { household_id: householdId },
     });
+  }
+
+  createDog(body: CreateDog): Promise<Dog> {
+    return this.request("POST", "/api/v1/dogs", { body });
+  }
+
+  updateDog(id: number, patch: UpdateDog): Promise<Dog> {
+    return this.request("PATCH", `/api/v1/dogs/${id}`, { body: patch });
+  }
+
+  deleteDog(id: number): Promise<{ deleted: number }> {
+    return this.request("DELETE", `/api/v1/dogs/${id}`);
   }
 
   listMembers(householdId?: number): Promise<FamilyMember[]> {

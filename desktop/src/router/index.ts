@@ -1,11 +1,19 @@
 import { createRouter, createWebHashHistory } from "vue-router";
-import { Bone, BookOpen, Pill, Settings as SettingsIcon, Users } from "@lucide/vue";
+import {
+  Bone,
+  BookOpen,
+  Dog,
+  Pill,
+  Settings as SettingsIcon,
+  Users,
+} from "@lucide/vue";
 import { useSettingsStore } from "../stores/settings";
 
 // Хеш-история — безопаснее для Tauri (нет сервера, который раздавал бы маршруты).
 const Dashboard = () => import("../views/Dashboard.vue");
 const Treatments = () => import("../views/Treatments.vue");
 const VetBook = () => import("../views/VetBook.vue");
+const Dogs = () => import("../views/Dogs.vue");
 const Family = () => import("../views/Family.vue");
 const Settings = () => import("../views/Settings.vue");
 
@@ -30,6 +38,12 @@ export const router = createRouter({
       name: "vetbook",
       component: VetBook,
       meta: { title: "Веткнига", icon: BookOpen },
+    },
+    {
+      path: "/dogs",
+      name: "dogs",
+      component: Dogs,
+      meta: { title: "Собаки", icon: Dog },
     },
     {
       path: "/family",
