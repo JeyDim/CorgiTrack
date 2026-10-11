@@ -4,7 +4,8 @@ use chrono_tz::Tz;
 use corgitrack::models::{Dose, DoseDetail, DoseStatus, TreatmentKind};
 use corgitrack::services::calendar::{event_description, mark_taken_url};
 use corgitrack::services::schedules::{
-    combine_due, iter_due_dates, next_escalation_action, EscalationAction,
+    combine_due, iter_due_dates, next_escalation_action, postponed_due, validate_postpone_target,
+    validate_taken_at, EscalationAction,
 };
 
 fn astrakhan() -> Tz {
@@ -110,6 +111,55 @@ fn escalation_noop_without_state() {
     );
 }
 
+#[test]
+fn postpone_only_to_the_future() {
+    let now = at(2026, 5, 1, 9, 0);
+    assert!(validate_postpone_target(at(2026, 5, 2, 9, 0), now).is_ok());
+    // в прошлое и на «сейчас» — нельзя: напоминание к такой дате уже не придёт.
+    assert!(validate_postpone_target(at(2026, 4, 30, 9, 0), now).is_err());
+    assert!(validate_postpone_target(now, now).is_err());
+}
+
+#[test]
+fn taken_at_rejects_future_beyond_clock_skew() {
+    let now = at(2026, 5, 1, 9, 0);
+    assert!(validate_taken_at(at(2026, 4, 20, 9, 0), now).is_ok());
+    // небольшой допуск на расхождение часов клиента и сервера.
+    assert!(validate_taken_at(at(2026, 5, 1, 9, 5), now).is_ok());
+    assert!(validate_taken_at(at(2026, 5, 1, 9, 6), now).is_err());
+}
+
+#[test]
+fn postponed_due_moves_to_next_day_keeping_local_time() {
+    // Астрахань UTC+4: приём в 09:00 местного = 05:00 UTC.
+    let due = at(2026, 5, 1, 5, 0);
+    // напоминание пришло до приёма — «на завтра» = следующий день, то же время.
+    assert_eq!(
+        postponed_due(astrakhan(), due, at(2026, 5, 1, 4, 30), 1),
+        at(2026, 5, 2, 5, 0)
+    );
+    // приём ещё через пару дней — сдвигаем от его собственной даты.
+    assert_eq!(
+        postponed_due(astrakhan(), due, at(2026, 4, 28, 12, 0), 1),
+        at(2026, 5, 2, 5, 0)
+    );
+    // просрочен на 3 дня — «на завтра» считается от сегодняшнего дня.
+    assert_eq!(
+        postponed_due(astrakhan(), due, at(2026, 5, 4, 10, 0), 1),
+        at(2026, 5, 5, 5, 0)
+    );
+}
+
+#[test]
+fn postponed_due_keeps_local_time_across_dst() {
+    let berlin: Tz = "Europe/Berlin".parse().unwrap();
+    // 28.03 09:00 CET (08:00 UTC) -> 29.03 09:00 CEST (07:00 UTC), а не +24 часа.
+    assert_eq!(
+        postponed_due(berlin, at(2026, 3, 28, 8, 0), at(2026, 3, 28, 7, 0), 1),
+        at(2026, 3, 29, 7, 0)
+    );
+}
+
 fn sample_detail() -> DoseDetail {
     let now = at(2026, 5, 1, 5, 0);
     let dose = Dose {
@@ -125,6 +175,8 @@ fn sample_detail() -> DoseDetail {
         confirmed_by_member_id: None,
         note: None,
         clinic: None,
+        original_due_at: None,
+        unscheduled: false,
         created_at: now,
     };
     DoseDetail {

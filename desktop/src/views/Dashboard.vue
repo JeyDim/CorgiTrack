@@ -1,13 +1,23 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { Bone, Dog, PartyPopper, PawPrint, RefreshCw } from "@lucide/vue";
+import {
+  Bone,
+  CalendarClock,
+  CalendarPlus,
+  Dog,
+  PartyPopper,
+  PawPrint,
+  RefreshCw,
+} from "@lucide/vue";
 
 import type { DoseStatus, DoseView, FamilyMember } from "../api/types";
 import { useSettingsStore } from "../stores/settings";
 import { useToastStore } from "../stores/toast";
-import { dayKey, formatTime, humanDay } from "../util/format";
+import { dayKey, formatDateShort, formatTime, humanDay } from "../util/format";
 import StatusBadge from "../components/StatusBadge.vue";
+import AddDoseForm from "../components/AddDoseForm.vue";
+import PostponeDoseForm from "../components/PostponeDoseForm.vue";
 
 const router = useRouter();
 const settings = useSettingsStore();
@@ -25,6 +35,8 @@ const doses = ref<DoseView[]>([]);
 const members = ref<FamilyMember[]>([]);
 const actingMember = ref<number | null>(null);
 const busyId = ref<number | null>(null);
+const postponeTarget = ref<DoseView | null>(null);
+const showAddDose = ref(false);
 
 const hasHousehold = computed(() => settings.householdId != null);
 
@@ -90,6 +102,17 @@ async function mark(dose: DoseView, status: DoseStatus) {
   }
 }
 
+// После переноса доза могла уйти за выбранный период или сменить день — перечитываем.
+function onPostponed() {
+  postponeTarget.value = null;
+  reload();
+}
+
+function onDoseAdded() {
+  showAddDose.value = false;
+  reload();
+}
+
 onMounted(() => {
   reload();
   loadMembers();
@@ -135,6 +158,14 @@ watch(lookahead, reload);
             {{ opt.label }}
           </button>
         </div>
+
+        <button
+          class="btn btn-sm"
+          title="Добавить пропущенный приём"
+          @click="showAddDose = true"
+        >
+          <CalendarPlus :size="16" /> Приём
+        </button>
 
         <button
           class="btn btn-ghost btn-sm"
@@ -202,6 +233,14 @@ watch(lookahead, reload);
                 <span v-if="d.instructions" class="muted small">{{
                   d.instructions
                 }}</span>
+                <span
+                  v-if="d.original_due_at"
+                  class="moved small"
+                  :title="d.note ?? undefined"
+                >
+                  <CalendarClock :size="13" />
+                  перенесено с {{ formatDateShort(d.original_due_at) }}
+                </span>
               </div>
             </div>
 
@@ -214,6 +253,14 @@ watch(lookahead, reload);
                   @click="mark(d, 'taken')"
                 >
                   Принято
+                </button>
+                <button
+                  class="btn btn-sm"
+                  :disabled="busyId === d.id"
+                  title="Отложить на другую дату"
+                  @click="postponeTarget = d"
+                >
+                  <CalendarClock :size="14" /> Отложить
                 </button>
                 <button
                   class="btn btn-danger-soft btn-sm"
@@ -231,6 +278,19 @@ watch(lookahead, reload);
         </div>
       </section>
     </div>
+
+    <PostponeDoseForm
+      v-if="postponeTarget"
+      :dose="postponeTarget"
+      @close="postponeTarget = null"
+      @saved="onPostponed"
+    />
+    <AddDoseForm
+      v-if="showAddDose"
+      :member-id="actingMember"
+      @close="showAddDose = false"
+      @saved="onDoseAdded"
+    />
   </div>
 </template>
 
@@ -396,5 +456,12 @@ watch(lookahead, reload);
 }
 .small {
   font-size: 0.82rem;
+}
+.moved {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--calm);
+  font-weight: 600;
 }
 </style>

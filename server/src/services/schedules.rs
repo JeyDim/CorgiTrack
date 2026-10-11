@@ -46,12 +46,16 @@ pub async fn ensure_future_doses(
 
     let mut created: u64 = 0;
     for t in treatments {
-        let existing: Vec<DateTime<Utc>> =
-            sqlx::query_scalar("SELECT due_at FROM doses WHERE treatment_id = $1 AND due_at <= $2")
-                .bind(t.id)
-                .bind(until)
-                .fetch_all(pool)
-                .await?;
+        // Слот отложенной дозы — её исходная дата (original_due_at), а не новая:
+        // иначе на старом месте расписания тут же появилась бы дубль-доза.
+        let existing: Vec<DateTime<Utc>> = sqlx::query_scalar(
+            "SELECT COALESCE(original_due_at, due_at) FROM doses \
+             WHERE treatment_id = $1 AND COALESCE(original_due_at, due_at) <= $2",
+        )
+        .bind(t.id)
+        .bind(until)
+        .fetch_all(pool)
+        .await?;
         let existing: HashSet<DateTime<Utc>> = existing.into_iter().collect();
 
         for due in iter_due_dates(tz, t.start_at, t.reminder_time, t.cycle_days, until) {
@@ -79,7 +83,8 @@ pub async fn ensure_future_doses(
 pub(crate) const DETAIL_SELECT: &str = "SELECT \
     d.id AS dose_id, d.treatment_id AS dose_treatment_id, d.due_at, d.status, d.api_key, \
     d.reminded_at, d.escalation_level, d.last_escalated_at, \
-    d.taken_at, d.confirmed_by_member_id, d.note, d.clinic AS dose_clinic, d.created_at AS dose_created_at, \
+    d.taken_at, d.confirmed_by_member_id, d.note, d.clinic AS dose_clinic, \
+    d.original_due_at, d.unscheduled, d.created_at AS dose_created_at, \
     COALESCE(d.treatment_name, t.name)       AS eff_name, \
     COALESCE(d.kind, t.kind)                 AS eff_kind, \
     COALESCE(d.category, t.category)         AS eff_category, \
@@ -108,6 +113,8 @@ pub(crate) fn row_to_detail(row: &PgRow) -> Result<DoseDetail, sqlx::Error> {
         confirmed_by_member_id: row.try_get("confirmed_by_member_id")?,
         note: row.try_get("note")?,
         clinic: row.try_get("dose_clinic")?,
+        original_due_at: row.try_get("original_due_at")?,
+        unscheduled: row.try_get("unscheduled")?,
         created_at: row.try_get("dose_created_at")?,
     };
     Ok(DoseDetail {
@@ -246,6 +253,122 @@ pub async fn mark_taken_by_api_key(
         .bind(id)
         .fetch_optional(pool)
         .await
+}
+
+/// Одна доза с деталями назначения и собаки. None — дозы нет.
+pub async fn get_dose_detail(
+    pool: &PgPool,
+    dose_id: i32,
+) -> Result<Option<DoseDetail>, sqlx::Error> {
+    let sql = format!("{DETAIL_SELECT} WHERE d.id = $1");
+    let row = sqlx::query(sqlx::AssertSqlSafe(sql))
+        .bind(dose_id)
+        .fetch_optional(pool)
+        .await?;
+    row.as_ref().map(row_to_detail).transpose()
+}
+
+/// Допуск на расхождение часов клиента и сервера в проверке «не в будущем».
+const CLOCK_SKEW_MINUTES: i64 = 5;
+
+/// Отложить приём можно только на будущее: окно напоминаний смотрит вперёд от
+/// текущего момента, и доза, перенесённая в прошлое, осталась бы без напоминания.
+pub fn validate_postpone_target(
+    new_due: DateTime<Utc>,
+    now: DateTime<Utc>,
+) -> Result<(), &'static str> {
+    if new_due <= now {
+        return Err("Отложить приём можно только на будущее время");
+    }
+    Ok(())
+}
+
+/// Фактический приём не может быть в будущем (с небольшим допуском на часы клиента).
+pub fn validate_taken_at(taken_at: DateTime<Utc>, now: DateTime<Utc>) -> Result<(), &'static str> {
+    if taken_at > now + Duration::minutes(CLOCK_SKEW_MINUTES) {
+        return Err("Время приёма не может быть в будущем");
+    }
+    Ok(())
+}
+
+/// Дата приёма, отложенного на `days` дней, с сохранением локального времени
+/// приёма. Просроченный приём сдвигаем от сегодняшнего дня — иначе «на завтра»
+/// могло бы так и остаться в прошлом.
+pub fn postponed_due(
+    tz: Tz,
+    due_at: DateTime<Utc>,
+    now: DateTime<Utc>,
+    days: i64,
+) -> DateTime<Utc> {
+    let due_local = due_at.with_timezone(&tz);
+    let base = due_local
+        .date_naive()
+        .max(now.with_timezone(&tz).date_naive());
+    local_to_utc(tz, (base + Duration::days(days)).and_time(due_local.time()))
+}
+
+/// Отложить приём на `new_due`. Доза снова становится запланированной: статус и
+/// эскалация сбрасываются, чтобы шедулер заново напомнил к новой дате. Исходный
+/// слот расписания запоминается при первом переносе и очищается, если приём
+/// вернули ровно на него. `expected_due` — защита от двойного переноса: перенос
+/// выполняется, только если плановая дата с тех пор не менялась (кнопка в старом
+/// сообщении бота). None — дозы нет, она уже принята или дата изменилась.
+pub async fn postpone_dose(
+    pool: &PgPool,
+    dose_id: i32,
+    new_due: DateTime<Utc>,
+    note: Option<&str>,
+    expected_due: Option<DateTime<Utc>>,
+) -> Result<Option<i32>, sqlx::Error> {
+    sqlx::query_scalar(
+        "UPDATE doses SET \
+            original_due_at   = NULLIF(COALESCE(original_due_at, due_at), $2), \
+            due_at            = $2, \
+            status            = 'planned', \
+            reminded_at       = NULL, \
+            escalation_level  = 0, \
+            last_escalated_at = NULL, \
+            note              = COALESCE($3, note) \
+         WHERE id = $1 AND status <> 'taken' \
+           AND ($4::timestamptz IS NULL OR due_at = $4) \
+         RETURNING id",
+    )
+    .bind(dose_id)
+    .bind(new_due)
+    .bind(note)
+    .bind(expected_due)
+    .fetch_optional(pool)
+    .await
+}
+
+/// Добавить принятый приём вне расписания (задним числом): плановая дата совпадает
+/// с фактической. Снимок назначения фиксируется сразу, как при отметке «принято».
+/// None — назначение не найдено.
+pub async fn add_unscheduled_taken(
+    pool: &PgPool,
+    treatment_id: i32,
+    taken_at: DateTime<Utc>,
+    member_id: Option<i32>,
+    note: Option<&str>,
+) -> Result<Option<i32>, sqlx::Error> {
+    let id: Option<i32> = sqlx::query_scalar(
+        "INSERT INTO doses \
+            (treatment_id, due_at, status, api_key, taken_at, confirmed_by_member_id, note, unscheduled) \
+         SELECT t.id, $2, 'taken'::dosestatus, $3, $2, $4, $5, TRUE \
+         FROM treatments t WHERE t.id = $1 \
+         RETURNING id",
+    )
+    .bind(treatment_id)
+    .bind(taken_at)
+    .bind(generate_api_key())
+    .bind(member_id)
+    .bind(note)
+    .fetch_optional(pool)
+    .await?;
+    if let Some(id) = id {
+        snapshot_treatment_into_dose(pool, id).await?;
+    }
+    Ok(id)
 }
 
 /// Все активные напоминания (статус reminded) с деталями — для шага эскалации.

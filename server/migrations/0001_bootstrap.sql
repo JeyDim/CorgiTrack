@@ -101,6 +101,11 @@ CREATE TABLE IF NOT EXISTS doses (
     dog_name               VARCHAR(120),
     dog_id                 INTEGER,
     household_id           INTEGER,
+    -- Исходный слот расписания отложенного приёма (NULL, если приём не переносили).
+    -- По нему генератор доз понимает, что слот занят, и не создаёт дозу заново.
+    original_due_at        TIMESTAMPTZ,
+    -- Приём добавлен вручную вне расписания (задним числом), а не сгенерирован.
+    unscheduled            BOOLEAN     NOT NULL DEFAULT FALSE,
     created_at             TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -126,6 +131,10 @@ ALTER TABLE doses ADD COLUMN IF NOT EXISTS cycle_days     INTEGER;
 ALTER TABLE doses ADD COLUMN IF NOT EXISTS dog_name       VARCHAR(120);
 ALTER TABLE doses ADD COLUMN IF NOT EXISTS dog_id         INTEGER;
 ALTER TABLE doses ADD COLUMN IF NOT EXISTS household_id   INTEGER;
+
+-- Перенос приёма и ручные приёмы вне расписания (для старых БД).
+ALTER TABLE doses ADD COLUMN IF NOT EXISTS original_due_at TIMESTAMPTZ;
+ALTER TABLE doses ADD COLUMN IF NOT EXISTS unscheduled     BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- Удаление назначения не должно стирать историю приёмов: treatment_id делаем
 -- NULLABLE и пересоздаём внешний ключ как ON DELETE SET NULL (для старых БД, где

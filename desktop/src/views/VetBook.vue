@@ -6,6 +6,7 @@ import {
   ArrowRight,
   BookOpen,
   Bug,
+  CalendarPlus,
   Dog as DogIcon,
   PawPrint,
   Syringe,
@@ -15,6 +16,7 @@ import {
 import type { Dog, DoseView } from "../api/types";
 import { useSettingsStore } from "../stores/settings";
 import { useToastStore } from "../stores/toast";
+import AddDoseForm from "../components/AddDoseForm.vue";
 
 const router = useRouter();
 const settings = useSettingsStore();
@@ -24,6 +26,7 @@ const loading = ref(false);
 const dogs = ref<Dog[]>([]);
 const taken = ref<DoseView[]>([]);
 const selectedDogId = ref<number | null>(null);
+const showAddDose = ref(false);
 
 const hasHousehold = computed(() => settings.householdId != null);
 
@@ -200,14 +203,23 @@ watch(totalPages, (max) => {
         <h1><BookOpen :size="24" /> Веткнига</h1>
         <p class="muted">История прививок и обработок — как в ветпаспорте.</p>
       </div>
-      <select
-        v-if="dogs.length > 1"
-        v-model.number="selectedDogId"
-        class="select dog-select"
-      >
-        <option :value="null">Все собаки</option>
-        <option v-for="d in dogs" :key="d.id" :value="d.id">{{ d.name }}</option>
-      </select>
+      <div v-if="hasHousehold" class="head-actions">
+        <select
+          v-if="dogs.length > 1"
+          v-model.number="selectedDogId"
+          class="select dog-select"
+        >
+          <option :value="null">Все собаки</option>
+          <option v-for="d in dogs" :key="d.id" :value="d.id">{{ d.name }}</option>
+        </select>
+        <button
+          class="btn btn-sm"
+          title="Добавить пропущенный приём"
+          @click="showAddDose = true"
+        >
+          <CalendarPlus :size="16" /> Добавить запись
+        </button>
+      </div>
     </header>
 
     <div v-if="!hasHousehold" class="empty card">
@@ -324,6 +336,15 @@ watch(totalPages, (max) => {
         </button>
       </footer>
     </div>
+
+    <AddDoseForm
+      v-if="showAddDose"
+      @close="showAddDose = false"
+      @saved="
+        showAddDose = false;
+        reload();
+      "
+    />
   </div>
 </template>
 
@@ -346,6 +367,11 @@ watch(totalPages, (max) => {
 }
 .view-head p {
   margin: 0.3rem 0 0;
+}
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
 }
 .dog-select {
   width: auto;

@@ -123,6 +123,10 @@ pub struct Dose {
     pub note: Option<String>,
     /// Ветклиника на момент приёма — снимок из treatments.clinic при отметке «принято».
     pub clinic: Option<String>,
+    /// Исходный слот расписания, если приём отложили (NULL — не переносили).
+    pub original_due_at: Option<DateTime<Utc>>,
+    /// Приём добавлен вручную вне расписания.
+    pub unscheduled: bool,
     pub created_at: DateTime<Utc>,
 }
 
@@ -167,6 +171,10 @@ pub struct DoseView {
     pub note: Option<String>,
     /// Ветклиника записи: снимок дозы, для старых записей — откат к клинике лечения.
     pub clinic: Option<String>,
+    /// Исходная плановая дата, если приём отложили.
+    pub original_due_at: Option<DateTime<Utc>>,
+    /// Приём добавлен вручную вне расписания.
+    pub unscheduled: bool,
 }
 
 impl DoseView {
@@ -187,6 +195,8 @@ impl DoseView {
             taken_at: d.dose.taken_at,
             note: d.dose.note.clone(),
             clinic: d.clinic.clone(),
+            original_due_at: d.dose.original_due_at,
+            unscheduled: d.dose.unscheduled,
         }
     }
 }

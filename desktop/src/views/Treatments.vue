@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import {
   Bone,
+  CalendarPlus,
   Clock,
   Dog as DogIcon,
   PawPrint,
@@ -20,6 +21,7 @@ import { useToastStore } from "../stores/toast";
 import { formatDate } from "../util/format";
 import TreatmentForm from "../components/TreatmentForm.vue";
 import ModalDialog from "../components/ModalDialog.vue";
+import AddDoseForm from "../components/AddDoseForm.vue";
 
 const router = useRouter();
 const settings = useSettingsStore();
@@ -32,6 +34,7 @@ const treatments = ref<Treatment[]>([]);
 const showForm = ref(false);
 const editing = ref<Treatment | null>(null);
 const deleteTarget = ref<Treatment | null>(null);
+const addDoseFor = ref<Treatment | null>(null);
 const busyId = ref<number | null>(null);
 
 const hasHousehold = computed(() => settings.householdId != null);
@@ -210,6 +213,13 @@ onMounted(reload);
             <div class="t-actions">
               <button
                 class="btn btn-ghost btn-sm"
+                title="Добавить пропущенный приём"
+                @click="addDoseFor = t"
+              >
+                <CalendarPlus :size="16" />
+              </button>
+              <button
+                class="btn btn-ghost btn-sm"
                 title="Изменить"
                 @click="openEdit(t)"
               >
@@ -259,6 +269,13 @@ onMounted(reload);
         </button>
       </template>
     </ModalDialog>
+
+    <AddDoseForm
+      v-if="addDoseFor"
+      :treatment-id="addDoseFor.id"
+      @close="addDoseFor = null"
+      @saved="addDoseFor = null"
+    />
   </div>
 </template>
 

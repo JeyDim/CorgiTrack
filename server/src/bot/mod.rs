@@ -1,22 +1,26 @@
 use std::time::Duration as StdDuration;
 
-use chrono::{Duration, Utc};
+use anyhow::Context;
+use chrono::{DateTime, Duration, Utc};
 use chrono_tz::Tz;
 use teloxide::prelude::*;
 use teloxide::types::{ChatId, InlineKeyboardButton, InlineKeyboardMarkup, InputFile};
 use teloxide::utils::command::BotCommands;
 use url::Url;
 
-use crate::models::{AppSettings, DoseDetail, FamilyMember};
+use crate::models::{AppSettings, DoseDetail, DoseStatus, FamilyMember};
 use crate::services::reports::taken_csv_for_household;
 use crate::services::schedules::{
-    advance_escalation, ensure_future_doses, get_due_for_household, get_household_for_telegram,
-    get_reminded_doses, mark_missed, mark_ready_to_remind, mark_taken, next_escalation_action,
-    ordered_notify_members, EscalationAction,
+    advance_escalation, ensure_future_doses, get_dose_detail, get_due_for_household,
+    get_household_for_telegram, get_reminded_doses, mark_missed, mark_ready_to_remind, mark_taken,
+    next_escalation_action, ordered_notify_members, postpone_dose, postponed_due, EscalationAction,
 };
 use crate::services::settings as app_settings;
 use crate::state::AppState;
 use crate::util::timezone;
+
+/// На сколько дней откладывает кнопка «Отложить на завтра».
+const POSTPONE_DAYS: i64 = 1;
 
 #[derive(BotCommands, Clone)]
 #[command(rename_rule = "lowercase")]
@@ -121,7 +125,7 @@ async fn command_impl(
             };
             ensure_future_doses(&state.pool, tz, 370).await?;
             let doses = get_due_for_household(&state.pool, h.id, Duration::days(1)).await?;
-            let mut req = bot.send_message(chat, render_due_list(&doses));
+            let mut req = bot.send_message(chat, render_due_list(&doses, tz));
             if let Some(kb) = due_keyboard(&doses) {
                 req = req.reply_markup(kb);
             }
@@ -168,10 +172,24 @@ async fn callback_impl(bot: &Bot, q: &CallbackQuery, state: &AppState) -> anyhow
     let Some(data) = q.data.as_deref() else {
         return Ok(());
     };
-    let Some(rest) = data.strip_prefix("taken:") else {
-        return Ok(());
-    };
-    let dose_id: i32 = rest.parse()?;
+    if let Some(rest) = data.strip_prefix("taken:") {
+        return taken_callback(bot, q, state, rest.parse()?).await;
+    }
+    if let Some(rest) = data.strip_prefix("postpone:") {
+        let (dose_id, due_ts) = rest
+            .split_once(':')
+            .context("неверный формат callback postpone")?;
+        return postpone_callback(bot, q, state, dose_id.parse()?, due_ts.parse()?).await;
+    }
+    Ok(())
+}
+
+async fn taken_callback(
+    bot: &Bot,
+    q: &CallbackQuery,
+    state: &AppState,
+    dose_id: i32,
+) -> anyhow::Result<()> {
     let user_id = q.from.id.0 as i64;
 
     let dose = mark_taken(&state.pool, dose_id, user_id, None).await?;
@@ -197,11 +215,73 @@ async fn callback_impl(bot: &Bot, q: &CallbackQuery, state: &AppState) -> anyhow
     Ok(())
 }
 
+/// Кнопка «Отложить на завтра». `seen_due_ts` — плановое время дозы на момент
+/// отправки сообщения: при эскалации одно напоминание приходит нескольким членам
+/// семьи, и повторное нажатие в старом сообщении не должно сдвигать приём ещё раз.
+async fn postpone_callback(
+    bot: &Bot,
+    q: &CallbackQuery,
+    state: &AppState,
+    dose_id: i32,
+    seen_due_ts: i64,
+) -> anyhow::Result<()> {
+    let tz = timezone(&state.settings.app_timezone);
+    let user_id = q.from.id.0 as i64;
+
+    // Откладывать может только член семьи, к которой относится доза.
+    let household = get_household_for_telegram(&state.pool, user_id).await?;
+    let detail = get_dose_detail(&state.pool, dose_id).await?;
+    let Some(d) = detail.filter(|d| household.is_some_and(|h| d.household_id == Some(h.id))) else {
+        return alert(bot, q, "Доза не найдена").await;
+    };
+    if d.dose.status == DoseStatus::Taken {
+        return alert(bot, q, "Приём уже отмечен принятым").await;
+    }
+    if d.dose.due_at.timestamp() != seen_due_ts {
+        let text = format!("Приём уже перенесён на {}", local_time(d.dose.due_at, tz));
+        return alert(bot, q, text).await;
+    }
+
+    let new_due = postponed_due(tz, d.dose.due_at, Utc::now(), POSTPONE_DAYS);
+    let updated = postpone_dose(&state.pool, dose_id, new_due, None, Some(d.dose.due_at)).await?;
+    if updated.is_none() {
+        // Пока читали дозу, её успели отметить или перенести по другому сообщению.
+        return alert(bot, q, "Приём уже изменён — проверьте /today").await;
+    }
+
+    let when = local_time(new_due, tz);
+    bot.answer_callback_query(q.id.clone())
+        .text(format!("Отложено на {when}"))
+        .await?;
+    if let Some(message) = q.message.as_ref() {
+        bot.edit_message_text(
+            message.chat().id,
+            message.id(),
+            format!("Приём «{}» отложен на {when}. Напомню заново.", d.name),
+        )
+        .await?;
+    }
+    Ok(())
+}
+
+async fn alert(bot: &Bot, q: &CallbackQuery, text: impl Into<String>) -> anyhow::Result<()> {
+    bot.answer_callback_query(q.id.clone())
+        .text(text)
+        .show_alert(true)
+        .await?;
+    Ok(())
+}
+
+/// Время приёма в часовом поясе приложения (в БД хранится UTC).
+fn local_time(at: DateTime<Utc>, tz: Tz) -> String {
+    at.with_timezone(&tz).format("%Y-%m-%d %H:%M").to_string()
+}
+
 fn not_linked() -> &'static str {
     "Пользователь Telegram еще не привязан. Отправьте /start, чтобы узнать свой ID."
 }
 
-fn render_due_list(doses: &[DoseDetail]) -> String {
+fn render_due_list(doses: &[DoseDetail], tz: Tz) -> String {
     if doses.is_empty() {
         return "В ближайшие 24 часа таблеток и прививок нет.".to_string();
     }
@@ -211,7 +291,7 @@ fn render_due_list(doses: &[DoseDetail]) -> String {
             "- {}: {}, {}",
             d.dog_name.as_deref().unwrap_or(""),
             d.name,
-            d.dose.due_at.format("%Y-%m-%d %H:%M")
+            local_time(d.dose.due_at, tz)
         ));
         if let Some(label) = &d.dose_label {
             lines.push(format!("  Доза: {label}"));
@@ -231,10 +311,16 @@ fn due_keyboard(doses: &[DoseDetail]) -> Option<InlineKeyboardMarkup> {
         .iter()
         .take(8)
         .map(|d| {
-            vec![InlineKeyboardButton::callback(
-                format!("Принято: {}", d.name),
-                format!("taken:{}", d.dose.id),
-            )]
+            vec![
+                InlineKeyboardButton::callback(
+                    format!("Принято: {}", d.name),
+                    format!("taken:{}", d.dose.id),
+                ),
+                InlineKeyboardButton::callback(
+                    "Отложить на завтра",
+                    format!("postpone:{}:{}", d.dose.id, d.dose.due_at.timestamp()),
+                ),
+            ]
         })
         .collect();
     Some(InlineKeyboardMarkup::new(rows))
@@ -279,7 +365,7 @@ async fn notify_due(
         };
         let members = ordered_notify_members(&state.pool, household_id).await?;
         if let Some(primary) = members.first() {
-            send_member_message(bot, primary, d, "Напоминание").await?;
+            send_member_message(bot, primary, d, "Напоминание", tz).await?;
         }
     }
 
@@ -310,13 +396,13 @@ async fn notify_due(
                 } else {
                     "Эскалация: предыдущий не ответил"
                 };
-                send_member_message(bot, &members[member_index], d, prefix).await?;
+                send_member_message(bot, &members[member_index], d, prefix, tz).await?;
                 advance_escalation(&state.pool, d.dose.id, next_level).await?;
             }
             EscalationAction::Missed => {
                 mark_missed(&state.pool, d.dose.id).await?;
                 if let Some(primary) = members.first() {
-                    let _ = send_member_message(bot, primary, d, "Пропущенная доза").await;
+                    let _ = send_member_message(bot, primary, d, "Пропущенная доза", tz).await;
                 }
             }
         }
@@ -330,12 +416,13 @@ async fn send_member_message(
     member: &FamilyMember,
     detail: &DoseDetail,
     prefix: &str,
+    tz: Tz,
 ) -> anyhow::Result<()> {
     let Some(tid) = member.telegram_user_id else {
         return Ok(());
     };
     let slice = std::slice::from_ref(detail);
-    let text = render_due_list(slice).replace("Скоро нужно:", &format!("{prefix}:"));
+    let text = render_due_list(slice, tz).replace("Скоро нужно:", &format!("{prefix}:"));
     let mut req = bot.send_message(ChatId(tid), text);
     if let Some(kb) = due_keyboard(slice) {
         req = req.reply_markup(kb);

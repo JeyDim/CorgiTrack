@@ -125,6 +125,10 @@ export interface DoseView {
   note: string | null;
   /** Ветклиника записи: снимок дозы, для старых записей — клиника лечения. */
   clinic: string | null;
+  /** Исходная плановая дата, если приём отложили (иначе null). */
+  original_due_at: string | null;
+  /** Приём добавлен вручную вне расписания. */
+  unscheduled: boolean;
 }
 
 /** Сырой ряд дозы, который возвращает POST /doses/{id}/status. */
@@ -138,6 +142,8 @@ export interface Dose {
   taken_at: string | null;
   confirmed_by_member_id: number | null;
   note: string | null;
+  original_due_at: string | null;
+  unscheduled: boolean;
   created_at: string;
 }
 
@@ -163,10 +169,28 @@ export interface StatusUpdate {
   status: DoseStatus;
   note?: string | null;
   member_id?: number | null;
+  /** Фактический момент приёма для status = "taken" (задним числом); по умолчанию — сейчас. */
+  taken_at?: string | null;
+}
+
+/** Принятый приём вне расписания (задним числом). */
+export interface CreateDose {
+  treatment_id: number;
+  /** Фактический момент приёма; не в будущем. */
+  taken_at: string;
+  note?: string | null;
+  member_id?: number | null;
+}
+
+/** Отложить приём: новая плановая дата (в будущем). */
+export interface PostponeDose {
+  due_at: string;
+  note?: string | null;
 }
 
 export interface DoseFilter {
   household_id?: number;
+  treatment_id?: number;
   from?: string;
   to?: string;
   status?: DoseStatus;

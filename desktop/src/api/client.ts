@@ -6,6 +6,7 @@ import { fetch } from "@tauri-apps/plugin-http";
 import type {
   AppSettings,
   CreateDog,
+  CreateDose,
   CreateMember,
   CreateTreatment,
   Dog,
@@ -14,6 +15,7 @@ import type {
   DoseView,
   FamilyMember,
   Household,
+  PostponeDose,
   StatusUpdate,
   Treatment,
   UpdateAppSettings,
@@ -138,6 +140,14 @@ export class CorgiApi {
 
   setDoseStatus(doseId: number, body: StatusUpdate): Promise<Dose> {
     return this.request("POST", `/api/v1/doses/${doseId}/status`, { body });
+  }
+
+  createDose(body: CreateDose): Promise<DoseView> {
+    return this.request("POST", "/api/v1/doses", { body });
+  }
+
+  postponeDose(doseId: number, body: PostponeDose): Promise<DoseView> {
+    return this.request("POST", `/api/v1/doses/${doseId}/postpone`, { body });
   }
 
   // ---- treatments ----
